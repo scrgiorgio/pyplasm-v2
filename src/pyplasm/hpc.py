@@ -1,7 +1,7 @@
 import math,itertools
 
 from pyplasm.mkpol  import *
-from pyplasm.geom   import *
+
 
 # ///////////////////////////////////////////////////////////////
 class Hpc:
@@ -166,11 +166,11 @@ class Hpc:
 			
 			# homo must be in last position....
 			T=T.embed(4)
-			T3D=Matrix4d([
+			T3D=[
 				T[1,1],T[1,2],T[1,3],T[1,0],
 				T[2,1],T[2,2],T[2,3],T[2,0],
 				T[3,1],T[3,2],T[3,3],T[3,0],
-				T[0,1],T[0,2],T[0,3],T[0,0]])
+				T[0,1],T[0,2],T[0,3],T[0,0]]
 		
 			for batch in obj.getBatches():
 				batch.prependTransformation(T3D)

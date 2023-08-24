@@ -1,7 +1,6 @@
 import sys,types,math,functools
 
 from pyplasm.hpc import *
-from pyplasm.geom import *
 
 PI = math.pi
 SIN = math.sin

@@ -1,7 +1,5 @@
-import math,sys,types
+import math,sys,types,copy, functools
 import numpy
-
-from pyplasm.geom import *
 
 # viewer dependencies
 from OpenGL.GL			import *
@@ -11,6 +9,455 @@ import glfw
 # ////////////////////////////////////////////
 def Flatten(l):
 	return functools.reduce(lambda x, y: x + y, l)
+
+
+# /////////////////////////////////////////////////////////////////////////
+class Point3d:
+	
+	def __init__(self,x:float=0.0, y:float=0.0, z:float=0.0):
+		self.x = float(x)
+		self.y = float(y)
+		self.z = float(z)
+
+	# toList
+	def toList(self):
+		return [self.x,self.y,self.z]
+		
+	# __repr__
+	def __repr__(self):
+		return f"Point3d({self.x}, {self.y}, {self.z})"
+	
+	# valid
+	def valid(self): 
+		return True
+
+	def __getitem__(self, key):
+		return {0:self.x,1:self.y,2:self.z}[key]
+			
+	def __setitem__(self, key, value):
+		if key==0: 
+			self.x=value
+		elif key==1:
+			self.y=value
+		elif key==2:
+			self.z=value
+		else:
+			raise Exception("iternal error")
+	
+	def __add__(self, o):
+		return Point3d((self.x + o.x), (self.y + o.y), (self.z + o.z))
+	
+	def __sub__(self, o):
+		return Point3d((self.x - o.x), (self.y - o.y), (self.z - o.z))
+		
+	def __mul__(self, vs):
+		return Point3d(self.x*vs,self.y*vs,self.z*vs)		
+
+	def __rmul__(self, vs):
+		return Point3d(self.x*vs,self.y*vs,self.z*vs)
+	
+	def __iadd__(self, o):
+		self.x += o.x
+		self.y += o.y
+		self.z += o.z
+		return self
+	
+	def __isub__(self, o):
+		self.x -= o.x
+		self.y -= o.y
+		self.z -= o.z
+		return self
+	
+	def __neg__(self):
+		return Point3d(-self.x, -self.y, -self.z)
+		
+	def length(self):
+		return math.sqrt((self.x*self.x) + (self.y*self.y) + (self.z*self.z))
+
+	def normalized(self):
+		len=self.length()
+		if len==0: len=1.0
+		return Point3d((self.x / len), (self.y / len), (self.z / len))
+
+	@staticmethod
+	def dotProduct(a, b):
+		return (a.x * b.x) + (a.y * b.y) + (a.z * b.z)
+
+	# dot
+	def dot(self,b):
+		return Point3d.dotProduct(self,b)
+
+	@staticmethod
+	def crossProduct(a,b): 
+		return Point3d(
+			a.y * b.z - b.y * a.z, 
+			a.z * b.x - b.z * a.x, 
+			a.x * b.y - b.x * a.y)
+	
+	# cross
+	def cross(self,b):
+		return Point3d.crossProduct(self,b)
+	
+
+
+
+# /////////////////////////////////////////////////////////////////////////
+class Point4d:
+	
+	def __init__(self,x:float=0.0, y:float=0.0, z:float=0.0, w:float=0.0):
+		self.x = float(x)
+		self.y = float(y)
+		self.z = float(z)
+		self.w = float(w)	
+
+	# toList
+	def toList(self):
+		return [self.x,self.y,self.z,self.w]
+
+	# __repr__
+	def __repr__(self):
+		return f"Point4d({self.x}, {self.y}, {self.z}, {self.w})"
+	
+	def __getitem__(self, key):
+		return {0:self.x, 1:self.y, 2:self.z, 3:self.w}[key]
+			
+	def __setitem__(self, key, value):
+		if key==0: 
+			self.x=value
+		elif key==1:
+			self.y=value
+		elif key==2:
+			self.z=value
+		elif key==3:
+			self.w=value
+		else:
+			raise Exception("iternal error")	
+	
+	# withoutHomo
+	def withoutHomo(self):
+		w=self.w
+		if w==0: w=1.0
+		return Point3d(self.x/w,self.y/w,self.z/w)
+
+
+# /////////////////////////////////////////////////////////////////////
+class Box3d:
+
+	# constructor
+	def __init__(self,p1 : Point3d =Point3d(),p2 : Point3d=Point3d()):
+		self.p1=Point3d(*p1.toList())
+		self.p2=Point3d(*p2.toList())
+		
+	@staticmethod
+	def invalid():
+		m,M=sys.float_info.min,sys.float_info.max
+		return Box3d(
+			Point3d(M,M,M),
+			Point3d(m,m,m))	
+
+	# valid
+	def valid(self):
+		for i in range(3):
+			if (self.p1[i]>self.p2[i]): return False
+		return True
+
+	# __repr__
+	def __repr__(self):
+		return f"Box3d({repr(self.p1)}, {repr(self.p2)})"
+
+	# addPoint
+	def addPoint(self,point):
+		for i in range(3):
+			self.p1[i]=min(self.p1[i],point[i])
+			self.p2[i]=max(self.p2[i],point[i])
+		return self
+
+	# addBox
+	def addBox(self,box):
+		self.addPoint(box.p1)
+		self.addPoint(box.p2)
+		return self
+
+	# addPoints
+	def addPoints(self,points):
+		for point in points:
+				self.addPoint(point)
+		return self
+
+# /////////////////////////////////////////////////////////////////////
+class Matrix4d:
+	def __init__(self, mat=[1.0, 0.0, 0.0, 0.0,  0.0, 1.0, 0.0, 0.0,  0.0, 0.0, 1.0, 0.0,  0.0, 0.0, 0.0, 1.0]):
+		self.mat = copy.copy(mat)
+		
+	# __repr__
+	def __repr__(self):
+		s=",".join([str(it) for it in self.mat])
+		return f"Matrix4d([{s}])"
+	
+	# toList
+	def toList(self):
+		return copy.copy(self.mat)
+
+	# get
+	def get(self,row,col):
+			return self.mat[row*4+col]
+
+	# toQuaternion
+	def toQuaternion(self):
+		
+		kRot=[
+				[self.mat[ 0],self.mat[ 1],self.mat[ 2]],
+				[self.mat[ 4],self.mat[ 5],self.mat[ 6]],
+				[self.mat[ 8],self.mat[ 9],self.mat[10]]]
+				
+		fTrace = kRot[0][0]+kRot[1][1]+kRot[2][2]
+		
+		if fTrace>0.0:
+			fRoot = math.sqrt(fTrace + 1.0)
+			w = 0.5*fRoot
+			fRoot = 0.5/fRoot
+			x = (kRot[2][1]-kRot[1][2])*fRoot
+			y = (kRot[0][2]-kRot[2][0])*fRoot
+			z = (kRot[1][0]-kRot[0][1])*fRoot
+			return Quaternion(w,x,y,z)
+		else:
+			s_iNext = [1, 2, 0]
+			i = 0
+			if ( kRot[1][1] > kRot[0][0] ) : i = 1
+			if ( kRot[2][2] > kRot[i][i] ) : i = 2
+			j = s_iNext[i]
+			k = s_iNext[j]
+			fRoot = math.sqrt(kRot[i][i]-kRot[j][j]-kRot[k][k] + 1.0)
+			Q = [0,0,0]
+			Q[i] = 0.5 * fRoot
+			fRoot = 0.5/fRoot
+			w = (kRot[k][j]-kRot[j][k])*fRoot
+			Q[j] = (kRot[j][i]+kRot[i][j])*fRoot
+			Q[k] = (kRot[k][i]+kRot[i][k])*fRoot
+			return Quaternion(w,Q[0],Q[1],Q[2])
+		
+
+	# transposed
+	def transposed(self):
+		return Matrix4d([
+			self.mat[ 0],self.mat[ 4],self.mat[ 8],self.mat[12],
+			self.mat[ 1],self.mat[ 5],self.mat[ 9],self.mat[13],
+			self.mat[ 2],self.mat[ 6],self.mat[10],self.mat[14],
+			self.mat[ 3],self.mat[ 7],self.mat[11],self.mat[15],
+		])
+
+	# transformPoint
+	def transformPoint(self,p):
+
+		if isinstance(p,list) or isinstance(p,tuple):
+			x,y,z=p
+		elif isinstance(p,Point3d):
+			x,y,z=p.x,p.y,p.z
+		else:
+			raise Exception(f"wrong argument {type(p)}")
+
+		X=(self.mat[ 0]*(x)+self.mat[ 1]*(y)+self.mat[ 2]*(z)+ self.mat[ 3]*(1.0))
+		Y=(self.mat[ 4]*(x)+self.mat[ 5]*(y)+self.mat[ 6]*(z)+ self.mat[ 7]*(1.0))
+		Z=(self.mat[ 8]*(x)+self.mat[ 9]*(y)+self.mat[10]*(z)+ self.mat[11]*(1.0))
+		W=(self.mat[12]*(x)+self.mat[13]*(y)+self.mat[14]*(z)+ self.mat[15]*(1.0))
+		return Point4d(X,Y,Z,W)	
+	
+	# __mul__
+	def __mul__(self, other):
+		A=self.mat
+		B=other.mat
+		return Matrix4d([
+			A[ 0]*B[ 0]+A[ 1]*B[ 4]+A[ 2]*B[ 8]+A[ 3]*B[12],
+			A[ 0]*B[ 1]+A[ 1]*B[ 5]+A[ 2]*B[ 9]+A[ 3]*B[13],
+			A[ 0]*B[ 2]+A[ 1]*B[ 6]+A[ 2]*B[10]+A[ 3]*B[14],
+			A[ 0]*B[ 3]+A[ 1]*B[ 7]+A[ 2]*B[11]+A[ 3]*B[15], 
+			A[ 4]*B[ 0]+A[ 5]*B[ 4]+A[ 6]*B[ 8]+A[ 7]*B[12], 
+			A[ 4]*B[ 1]+A[ 5]*B[ 5]+A[ 6]*B[ 9]+A[ 7]*B[13], 
+			A[ 4]*B[ 2]+A[ 5]*B[ 6]+A[ 6]*B[10]+A[ 7]*B[14], 
+			A[ 4]*B[ 3]+A[ 5]*B[ 7]+A[ 6]*B[11]+A[ 7]*B[15], 
+			A[ 8]*B[ 0]+A[ 9]*B[ 4]+A[10]*B[ 8]+A[11]*B[12], 
+			A[ 8]*B[ 1]+A[ 9]*B[ 5]+A[10]*B[ 9]+A[11]*B[13], 
+			A[ 8]*B[ 2]+A[ 9]*B[ 6]+A[10]*B[10]+A[11]*B[14], 
+			A[ 8]*B[ 3]+A[ 9]*B[ 7]+A[10]*B[11]+A[11]*B[15], 
+			A[12]*B[ 0]+A[13]*B[ 4]+A[14]*B[ 8]+A[15]*B[12], 
+			A[12]*B[ 1]+A[13]*B[ 5]+A[14]*B[ 9]+A[15]*B[13], 
+			A[12]*B[ 2]+A[13]*B[ 6]+A[14]*B[10]+A[15]*B[14], 
+			A[12]*B[ 3]+A[13]*B[ 7]+A[14]*B[11]+A[15]*B[15]])
+
+	# inverted
+	def inverted(self):
+		trans=self.transposed()
+		m=trans.mat
+		inv=[0.0]*16
+		inv[ 0] =  m[5]*m[10]*m[15] - m[5]*m[11]*m[14] - m[9]*m[6]*m[15]+ m[9]*m[7]*m[14] + m[13]*m[6]*m[11] - m[13]*m[7]*m[10]
+		inv[ 4] = -m[4]*m[10]*m[15] + m[4]*m[11]*m[14] + m[8]*m[6]*m[15]- m[8]*m[7]*m[14] - m[12]*m[6]*m[11] + m[12]*m[7]*m[10]
+		inv[ 8] =  m[4]*m[ 9]*m[15] - m[4]*m[11]*m[13] - m[8]*m[5]*m[15]+ m[8]*m[7]*m[13] + m[12]*m[5]*m[11] - m[12]*m[7]*m[ 9]
+		inv[12] = -m[4]*m[ 9]*m[14] + m[4]*m[10]*m[13] + m[8]*m[5]*m[14]- m[8]*m[6]*m[13] - m[12]*m[5]*m[10] + m[12]*m[6]*m[ 9]
+		inv[ 1] = -m[1]*m[10]*m[15] + m[1]*m[11]*m[14] + m[9]*m[2]*m[15]- m[9]*m[3]*m[14] - m[13]*m[2]*m[11] + m[13]*m[3]*m[10]
+		inv[ 5] =  m[0]*m[10]*m[15] - m[0]*m[11]*m[14] - m[8]*m[2]*m[15]+ m[8]*m[3]*m[14] + m[12]*m[2]*m[11] - m[12]*m[3]*m[10]
+		inv[ 9] = -m[0]*m[ 9]*m[15] + m[0]*m[11]*m[13] + m[8]*m[1]*m[15]- m[8]*m[3]*m[13] - m[12]*m[1]*m[11] + m[12]*m[3]*m[ 9]
+		inv[13] =  m[0]*m[ 9]*m[14] - m[0]*m[10]*m[13] - m[8]*m[1]*m[14]+ m[8]*m[2]*m[13] + m[12]*m[1]*m[10] - m[12]*m[2]*m[ 9]
+		inv[ 2] =  m[1]*m[ 6]*m[15] - m[1]*m[ 7]*m[14] - m[5]*m[2]*m[15]+ m[5]*m[3]*m[14] + m[13]*m[2]*m[ 7] - m[13]*m[3]*m[ 6]
+		inv[ 6] = -m[0]*m[ 6]*m[15] + m[0]*m[ 7]*m[14] + m[4]*m[2]*m[15]- m[4]*m[3]*m[14] - m[12]*m[2]*m[ 7] + m[12]*m[3]*m[ 6]
+		inv[10] =  m[0]*m[ 5]*m[15] - m[0]*m[ 7]*m[13] - m[4]*m[1]*m[15]+ m[4]*m[3]*m[13] + m[12]*m[1]*m[ 7] - m[12]*m[3]*m[ 5]
+		inv[14] = -m[0]*m[ 5]*m[14] + m[0]*m[ 6]*m[13] + m[4]*m[1]*m[14]- m[4]*m[2]*m[13] - m[12]*m[1]*m[ 6] + m[12]*m[2]*m[ 5]
+		inv[ 3] = -m[1]*m[ 6]*m[11] + m[1]*m[ 7]*m[10] + m[5]*m[2]*m[11]- m[5]*m[3]*m[10] - m[ 9]*m[2]*m[ 7] + m[ 9]*m[3]*m[ 6]
+		inv[ 7] =  m[0]*m[ 6]*m[11] - m[0]*m[ 7]*m[10] - m[4]*m[2]*m[11]+ m[4]*m[3]*m[10] + m[ 8]*m[2]*m[ 7] - m[ 8]*m[3]*m[ 6]
+		inv[11] = -m[0]*m[ 5]*m[11] + m[0]*m[ 7]*m[ 9] + m[4]*m[1]*m[11]- m[4]*m[3]*m[ 9] - m[ 8]*m[1]*m[ 7] + m[ 8]*m[3]*m[ 5]
+		inv[15] =  m[0]*m[ 5]*m[10] - m[0]*m[ 6]*m[ 9] - m[4]*m[1]*m[10]+ m[4]*m[2]*m[ 9] + m[ 8]*m[1]*m[ 6] - m[ 8]*m[2]*m[ 5]
+		det = m[0]*inv[0] + m[1]*inv[4] + m[2]*inv[8] + m[3]*inv[12]
+		if det==0: return Matrix4d()
+		return Matrix4d([it * (1.0/det) for it in inv]).transposed() 
+	
+	# dropW
+	def dropW(self):
+		return [
+			self.mat[0],self.mat[1],self.mat[ 2],
+			self.mat[4],self.mat[5],self.mat[ 6],
+			self.mat[8],self.mat[9],self.mat[10]]
+		
+	@ staticmethod
+	def Translate(vt):
+		return Matrix4d([
+				1.0, 0.0, 0.0, vt[0],
+				0.0, 1.0, 0.0, vt[1],
+				0.0, 0.0, 1.0, vt[2],
+				0.0, 0.0, 0.0, 1.0])	
+	
+	# translate
+	def translate(self,x,y,z):
+		tmp=self* Matrix4d.Translate([x,y,z])
+		self.mat=tmp.mat
+
+	@ staticmethod
+	def Scale(vs):
+		return Matrix4d([
+				vs[0], 0.0, 0.0, 0.0,
+				0.0, vs[1], 0.0, 0.0,
+				0.0, 0.0, vs[2], 0.0,
+				0.0, 0.0, 0.0, 1.0])
+	
+	# scale
+	def scale(self,x,y,z):
+		tmp=self* Matrix4d.Scale([x,y,z])
+		self.mat=tmp.mat
+	
+	@ staticmethod
+	def LookAt(eye, center, up):
+		forward=(center-eye).normalized()
+		side   = Point3d.crossProduct(forward,up).normalized()
+		up     = Point3d.crossProduct(side,forward)
+		m = Matrix4d([
+			side[0],up[0],-forward[0], 0.0,
+			side[1],up[1],-forward[1], 0.0,
+			side[2],up[2],-forward[2], 0.0,
+			    0.0,  0.0,        0.0, 1.0
+		])
+		ret= m.transposed() * Matrix4d.Translate(-1*eye)
+		return ret
+	
+
+	# getLookAt
+	def getLookAt(self):
+		vmat=self.inverted().mat
+		pos=Point3d(  vmat[3], vmat[7], vmat[11])
+		vup=Point3d(  vmat[1], vmat[5], vmat[ 9]).normalized()
+		dir=Point3d( -vmat[2],-vmat[6],-vmat[10]).normalized()
+		return [pos,dir,vup]
+
+	@staticmethod
+	def Rotate(q):
+		return q.toMatrix4d()
+	
+	@staticmethod
+	def RotateAroundCenter(center, q):
+		if q.getAngle()==0: 
+			return Matrix4d()
+		else:
+			return Matrix4d.Translate(center) * Matrix4d.Rotate(q) * Matrix4d.Translate(-center)
+		
+	# rotate
+	def rotate(self,q):
+		tmp=self* Matrix4d.Rotate(q)
+		self.mat=tmp.mat	
+
+	@ staticmethod
+	def Perspective(fovy, aspect, zNear, zFar):
+		radians =  math.radians(fovy/2.0)
+		cotangent = math.cos(radians) / math.sin(radians)
+		m=Matrix4d()
+		m.mat[ 0] = cotangent / aspect
+		m.mat[ 5] = cotangent
+		m.mat[10] = -(zFar + zNear) / (zFar - zNear)
+		m.mat[11] = -1
+		m.mat[14] = -2 * zNear * zFar / (zFar - zNear)
+		m.mat[15] = 0
+		ret=m.transposed()
+		return ret
+
+# /////////////////////////////////////////////////////////////////////
+class Quaternion:
+
+	def __init__(self,fW:float =1.0,fX:float=0.0,fY:float=0.0,fZ:float=0.0):
+		self.w = fW
+		self.x = fX
+		self.y = fY
+		self.z = fZ
+
+	# toList
+	def toList(self):
+		return [self.w,self.x,self.y,self.z]		
+
+	# __repr__
+	def __repr__(self):
+		return f"Quaternion({self.w}, {self.x}, {self.y}, {self.z})" 
+
+	# getAxis
+	def getAxis(self)  :
+		return Point3d(self.x, self.y, self.z).normalized() if self.x!=0.0 or self.y!=0.0 or self.z!=0.0 else Point3d(0,0,1)
+
+	# getAngle
+	def getAngle(self) :
+		w=self.w
+		if w<-1.0: w=1.0
+		if w>+1.0: w=1.0
+		return 2.0*math.acos(w)
+
+	@staticmethod
+	def FromAxisAndAngle(axis,angle):
+		axis=axis.normalized()
+		halfangle = 0.5*angle
+		fSin = math.sin(halfangle)
+		return Quaternion(math.cos(halfangle),fSin*axis.x,fSin*axis.y,fSin*axis.z)
+		
+	def toMatrix4d(self):
+		fTx  = 2.0*self.x
+		fTy  = 2.0*self.y
+		fTz  = 2.0*self.z
+		fTwx = fTx*self.w
+		fTwy = fTy*self.w
+		fTwz = fTz*self.w
+		fTxx = fTx*self.x
+		fTxy = fTy*self.x
+		fTxz = fTz*self.x
+		fTyy = fTy*self.y
+		fTyz = fTz*self.y
+		fTzz = fTz*self.z
+		return Matrix4d([
+			1.0-(fTyy+fTzz),    (fTxy-fTwz),    (fTxz+fTwy),0.0,
+					(fTxy+fTwz),1.0-(fTxx+fTzz),    (fTyz-fTwx),0.0,
+					(fTxz-fTwy),    (fTyz+fTwx),1.0-(fTxx+fTyy),0.0,
+			0.0,0.0,0.0,1.0])
+
+	# product
+	def __mul__(self, b):
+		a=self
+		return Quaternion(
+			a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z,
+			a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
+			a.w * b.y + a.y * b.w + a.z * b.x - a.x * b.z,
+			a.w * b.z + a.z * b.w + a.x * b.y - a.y * b.x)		
+	
 
 # /////////////////////////////////////////////////////////////////////
 class GLVertexBuffer:
@@ -83,6 +530,7 @@ class GLBatch:
 			
 	# prependTransformation
 	def prependTransformation(self,T):
+		if not isinstance(T,Matrix4d): T=Matrix4d(T)
 		self.T=T * self.T
 		
 	# writeProperties
