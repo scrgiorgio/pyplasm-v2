@@ -3,6 +3,11 @@ Links:
 
 # Examples
 
+Dependencies:
+- numpy for MatrixNd
+- glfw, OpenGL for the viewer
+- scipy.spatial for qhull
+
 ```
 set PYTHONPATH=src
 python src/pyplasm/fenvs.py
@@ -13,12 +18,6 @@ python examples/python/temple.py
 python examples/python/pisa.py
 ```
 
-Dependencies:
-- numpy for some matrix things (can be eliminated?)
-- glfw, OpenGL for the viewer
-- scipy.spatial (alternatives?)
-- 
-- 
 # Julia
 
 ```
