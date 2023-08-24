@@ -314,19 +314,10 @@ class MkPol:
 				continue
 
 			# all other cases
-			"""
-			THIS  is partially wrong, since hull.simplices contains the face simplices, I should instead do:
-
-			from scipy.spatial import ConvexHull,Delaunay
-			hull=ConvexHull([[0,0],[0.2,0.2],[1,0],[0.3,0.3],[1,1],[0.4,0.4],[0,1],[0.5,0.5],[0.8,0.8]])
-			points=[tuple(hull.points[P]) for P in hull.vertices]
-
-			d=Delaunay(points)
-			points,simplices=d.points,d.vertices
-			print(points,simplices) # vertices contains the list of simplices
-			"""
-		
-			d  = scipy.spatial.Delaunay([self.points[I] for I in hull])
+			points=[self.points[idx] for idx in hull]
+			h=scipy.spatial.ConvexHull(points)
+			points=[tuple(h.points[idx]) for idx in h.vertices]
+			d=scipy.spatial.Delaunay(points)
 			for simplex in d.vertices: # d.vertices contains simplices
 				simplices.append([db.getIndex(d.points[idx]) for idx in simplex])
 
