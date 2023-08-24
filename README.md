@@ -10,6 +10,7 @@ Dependencies:
 
 ```
 set PYTHONPATH=src
+python src/pyplasm/hpc.py
 python src/pyplasm/fenvs.py
 python src/pyplasm/viewer.py
 

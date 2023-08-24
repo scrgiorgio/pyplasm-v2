@@ -1,5 +1,6 @@
-import math,itertools
 
+
+import math,itertools
 
 # this is needed for compiting the hull
 import scipy
@@ -8,8 +9,11 @@ import scipy.spatial
 import sys,functools,math,copy
 import numpy
 
+import warnings
+warnings.filterwarnings("ignore")
+
 # /////////////////////////////////////////////////////////////////
-def ComputeNormal(p0,p1,p2):
+def ComputeTriangleNormal(p0,p1,p2):
 	p0=list(p0) + [0]*(3-len(p0))
 	p1=list(p1) + [0]*(3-len(p1))
 	p2=list(p2) + [0]*(3-len(p2))
@@ -38,6 +42,7 @@ def GoodTetOrientation(v0,v1,v2,v3):
 
 
 # //////////////////////////////////////////////////////////////////////
+# first element is homo coordinates
 class BoxNd:
 	
 	# constructor
@@ -64,7 +69,7 @@ class BoxNd:
 	# valid
 	def valid(self):
 		for i in range(self.dim()):
-			if (self.p1[i]>self.p2[i]): return False
+			if (self.p1[i]>self.p2[i]): return False # they can be equal!
 		return True
 		
 	# __eq__
@@ -115,10 +120,8 @@ class BoxNd:
 	def addBox(self,other):
 		return self.addPoint(other.p1).addPoint(other.p2)
 	
-
-
 # ////////////////////////////////////////////////////////////
-# MatrixNd class (first row/column are in omogeneous coordinates!)
+# first row/column are in omogeneous coordinates!
 class MatrixNd:
 	
 	def __init__(self,arg=None):
@@ -131,6 +134,14 @@ class MatrixNd:
 	def __setitem__(self, *args):
 		return self.T.__setitem__(*args)
 		
+	# __eq__
+	def __eq__(self, other):
+		return isinstance(other, self.__class__) and (self.T==other.T).all()
+	
+	# __ne__
+	def __ne__(self, other):
+		return not self.__eq__(other)  
+
 	# repr
 	def __repr__(self):
 		
@@ -216,7 +227,6 @@ class MatrixNd:
 		T[i,i]=+math.cos(angle) ; T[i,j]=-math.sin(angle)
 		T[j,i]=+math.sin(angle) ; T[j,j]=+math.cos(angle)
 		return T 
-
 
 # ///////////////////////////////////////////////////////////////
 class MkPol:
@@ -371,7 +381,7 @@ class MkPol:
 				p0=SF.points[hull[0]]; p0=list(p0) + [0.0]*(3-len(p0)) 
 				p1=SF.points[hull[1]]; p1=list(p1) + [0.0]*(3-len(p1))
 				p2=SF.points[hull[2]]; p2=list(p2) + [0.0]*(3-len(p2))
-				n=ComputeNormal(p0,p1,p2)
+				n=ComputeTriangleNormal(p0,p1,p2)
 				triangles.vertices.append(p0); triangles.normals.append(n)
 				triangles.vertices.append(p1); triangles.normals.append(n)
 				triangles.vertices.append(p2); triangles.normals.append(n)    
@@ -381,7 +391,7 @@ class MkPol:
 					p0=SF.points[hull[T[0]]]; p0=list(p0) + [0.0]*(3-len(p0)) 
 					p1=SF.points[hull[T[1]]]; p1=list(p1) + [0.0]*(3-len(p1))
 					p2=SF.points[hull[T[2]]]; p2=list(p2) + [0.0]*(3-len(p2))
-					n=ComputeNormal(p0,p1,p2)
+					n=ComputeTriangleNormal(p0,p1,p2)
 					triangles.vertices.append(p0); triangles.normals.append(n)
 					triangles.vertices.append(p1); triangles.normals.append(n)
 					triangles.vertices.append(p2); triangles.normals.append(n)
@@ -394,8 +404,6 @@ class MkPol:
 		if len(lines    .vertices)>0: ret.append(lines    )
 		if len(triangles.vertices)>0: ret.append(triangles)
 		return ret
-
-		
 
 # ///////////////////////////////////////////////////////////////
 class Hpc:
@@ -635,7 +643,80 @@ class Hpc:
 		return ret
 		
 	
+import unittest
+
+# //////////////////////////////////////////////////////
+class Testing(unittest.TestCase):
 		
+	def testComputeNormal(self):
+			self.assertEqual(ComputeTriangleNormal([0,0,0],[1,0,0],[0,1,0]), [0.0,0.0,1.0])
+			self.assertEqual(ComputeTriangleNormal([0,0,0],[0,1,0],[0,0,1]), [1.0,0.0,0.0])
+			self.assertEqual(ComputeTriangleNormal([0,0,0],[1,0,1],[1,0,0]), [0.0,1.0,0.0])
+
+	def testGoodTet(self):
+		self.assertTrue(GoodTetOrientation([0,0,0],[1,0,0],[0,1,0],[0,0,1]))
+		self.assertFalse(GoodTetOrientation([0,0,0],[0,1,0],[1,0,0],[0,0,1]))
+
+	def testBox(self):
+		x1,y1,z1=1,2,3
+		x2,y2,z2=4,5,6
+		b=BoxNd([1.0, x1,y1,z1],[1.0, x2,y2,z2])
+		self.assertEqual(b.dim(),4)
+		self.assertEqual(b.p1,[1.0, x1,y1,z1])
+		self.assertEqual(b.p2,[1.0, x2,y2,z2])
+		self.assertTrue(b.valid())
+		self.assertEqual(b,BoxNd(*b.toList()))
+		self.assertEqual(b.size(),[0.0, x2-x1,y2-y1,z2-z1])
+		self.assertEqual(b.center(),[1.0, (x1+x2)/2,(y1+y2)/2,(z1+z2)/2])
+		x1,y1,z1=-1,-2,-3
+		x2,y2,z2=10,20,30
+		b.addPoint([1.0, x1,y1,z1])
+		b.addPoint([1.0, x2,y2,z2])
+		self.assertEqual(b,BoxNd([1.0, x1,y1,z1],[1.0, x2,y2,z2]))
+
+	def testMat(self):
+		T=MatrixNd(4)
+		v=[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]
+		T[0,0]+=0.0
+		self.assertEqual(T,MatrixNd(v))
+		self.assertEqual(T.dim(),4)
+		self.assertEqual(T[0,0],1.0)
+		self.assertTrue(T.isIdentity())
+		self.assertEqual(T.toList(),v)
+		self.assertEqual(T.transpose(),T)
+		self.assertEqual(T.invert(),T)
+		self.assertEqual(T.embed(5),MatrixNd(5))
+		self.assertEqual(T * T,T)
+
+		# transform point does not want homo coordinate
+		p=[2.0, 3.0, 4.0]
+		self.assertEqual(T.transformPoint(p),p)
+		self.assertEqual(MatrixNd.translate([10,20,30]),MatrixNd([[1,0,0,0],[10,1,0,0],[20,0,1,0],[30,0,0,1]]))
+		self.assertEqual(MatrixNd.scale([10,20,30]),MatrixNd([[1,0,0,0],[0,10,0,0],[0,0,20,0],[0,0,0,30]]))
+		angle=math.pi/2
+		self.assertEqual(MatrixNd.rotate(1,2,angle),MatrixNd([[1,0,0],[0.0,math.cos(angle),-math.sin(angle)],[0.0,+math.sin(angle),math.cos(angle)]]))
+
+	def testMkPol(self):
+		pass
+
+	def testHpc(self):
+		pass
+
+
+######################################################################
+if __name__=="__main__":
+
+	tests=Testing()
+	tests.testComputeNormal()
+	tests.testGoodTet()
+	tests.testBox()
+	tests.testMat()
+	tests.testMat()
+	tests.testMkPol()
+	tests.testHpc()
+	print("all done")
+
+	
 
 
 
