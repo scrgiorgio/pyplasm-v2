@@ -1,23 +1,560 @@
-
 using LinearAlgebra
-
 using ModernGL
-import GLFW
-import Base:*
+using LinearAlgebra
+using GLFW
 
-include("Point.jl") 
-include("Box.jl") 
-include("Matrix.jl") 
-include("Quaternion.jl") 
-include("Frustum.jl") 
 
-include("GLUtils.jl") 
-include("GLVertexBuffer.jl") 
-include("GLVertexArray.jl") 
-include("GLMesh.jl") 
-include("GLShader.jl") 
-include("GLPhongShader.jl") 
 
+include("Geom.jl") 
+
+# /////////////////////////////////////////////////////////////////////
+function glGenBuffer()
+	id = GLuint[0]
+	glGenBuffers(1, id)
+	glCheckError("generating a buffer, array, or texture")
+	id[]
+end
+
+# /////////////////////////////////////////////////////////////////////
+function glGenVertexArray()
+	id = GLuint[0]
+	glGenVertexArrays(1, id)
+	glCheckError("generating a buffer, array, or texture")
+	id[]
+end
+
+# /////////////////////////////////////////////////////////////////////
+function glCheckError(actionName="")
+	message = glErrorMessage()
+	if length(message) > 0
+		if length(actionName) > 0
+		error("Error ", actionName, ": ", message)
+		else
+		error("Error: ", message)
+		end
+	end
+end
+
+# /////////////////////////////////////////////////////////////////////
+function glErrorMessage()
+	err = glGetError()
+	if err == GL_NO_ERROR return "" end
+	if err == GL_INVALID_ENUM return "GL_INVALID_ENUM" end
+	if err == GL_INVALID_VALUE return "GL_INVALID_VALUE"  end
+	if err == GL_INVALID_OPERATION return "GL_INVALID_OPERATION"  end
+	if err == GL_INVALID_FRAMEBUFFER_OPERATION return "GL_INVALID_FRAMEBUFFER_OPERATION"  end
+	if err == GL_OUT_OF_MEMORY return "GL_OUT_OF_MEMORY" end
+	return "Unknown OpenGL error with error code"
+end
+
+
+# /////////////////////////////////////////////////////////////////////
+__release_gpu_resources__=[] 
+
+function glDeleteLater(fun::Function)
+	global __release_gpu_resources__
+	append!(__release_gpu_resources__,[fun])
+end
+
+# /////////////////////////////////////////////////////////////////////
+function glDeleteNow()
+	global __release_gpu_resources__
+	for fun in __release_gpu_resources__
+		fun()
+	end	
+end
+
+# /////////////////////////////////////////////////////////////////////
+mutable struct GLVertexBuffer
+
+	id::Int32
+	vector::Vector{Float32}
+	
+	# constructor
+	function GLVertexBuffer()
+		ret=new(-1,[])
+		finalizer(releaseGpuResources, ret)
+		return ret
+	end
+	
+	# constructor
+	function GLVertexBuffer(vector::Vector{Float32})
+		ret=new(-1,vector)
+		finalizer(releaseGpuResources, ret)
+		return ret
+	end	
+	
+end
+
+# /////////////////////////////////////////////////////////////////////
+function releaseGpuResources(buffer::GLVertexBuffer)
+	global __release_gpu_resources__
+	if buffer.id>=0
+		id=buffer.id
+		buffer.id=-1
+		glDeleteLater(function()  glDeleteBuffers(1,[id]) end)
+	end
+end
+
+# /////////////////////////////////////////////////////////////////////
+function enableAttribute(location::Int32,buffer::GLVertexBuffer,num_components::Int64)
+	if length(buffer.vector)==00 || location<0 return end
+	if buffer.id<0 buffer.id=glGenBuffer() end
+	glBindBuffer(GL_ARRAY_BUFFER, buffer.id)
+	glBufferData(GL_ARRAY_BUFFER, sizeof(buffer.vector), buffer.vector, GL_STATIC_DRAW)
+	glVertexAttribPointer(location,num_components,GL_FLOAT,false,0,C_NULL)
+	glEnableVertexAttribArray(location)	
+	glBindBuffer(GL_ARRAY_BUFFER, 0)	
+end	
+
+# /////////////////////////////////////////////////////////////////////
+function disableAttribute(location::Int32,buffer::GLVertexBuffer)
+	if length(buffer.vector)==00 || location<0 return end
+	glDisableVertexAttribArray(location)
+end
+
+
+
+
+
+
+# /////////////////////////////////////////////////////////////////////
+mutable struct GLVertexArray
+
+	id::Int32
+	
+	# constructor
+	function GLVertexArray()
+		ret=new(-1)
+		finalizer(releaseGpuResources, ret)
+		return ret
+	end
+		
+end
+
+
+# /////////////////////////////////////////////////////////////////////
+function releaseGpuResources(array::GLVertexArray)
+	global __release_gpu_resources__
+	if array.id>=0
+		id=array.id
+		array.id=-1
+		glDeleteLater(function() glDeleteVertexArrays(1,[id]) end)	
+	end
+end
+
+# /////////////////////////////////////////////////////////////////////
+function enableVertexArray(array::GLVertexArray)
+
+	# not needed or osx
+	if Sys.isapple() return end
+
+	if array.id<0
+		array.id=glGenVertexArray()
+	end
+	glBindVertexArray(array.id)
+end
+
+# /////////////////////////////////////////////////////////////////////
+function disableVertexArray(array::GLVertexArray)
+
+	# not needed or osx
+	if Sys.isapple() return end
+
+	glBindVertexArray(0)
+end
+
+
+# /////////////////////////////////////////////////////////////////////
+mutable struct GLMesh
+
+	primitive::Int32
+	T::Matrix4d
+	vertex_array::GLVertexArray 
+	
+	vertices::GLVertexBuffer
+	normals::GLVertexBuffer
+	colors::GLVertexBuffer
+	
+	# constructor
+	function GLMesh()
+		ret=new(POINTS,Matrix4d(),GLVertexArray(),GLVertexBuffer(),GLVertexBuffer(),GLVertexBuffer())
+		finalizer(releaseGpuResources, ret)
+		return ret
+	end
+	
+	# constructor
+	function GLMesh(primitive)
+		ret=new(primitive,Matrix4d(),GLVertexArray(),GLVertexBuffer(),GLVertexBuffer(),GLVertexBuffer())
+		finalizer(releaseGpuResources, ret)
+		return ret
+	end
+	
+end
+
+# /////////////////////////////////////////////////////////////////////
+function releaseGpuResources(mesh::GLMesh)
+	releaseGpuResources(mesh.vertex_array)
+	releaseGpuResources(mesh.vertices)
+	releaseGpuResources(mesh.normals)
+	releaseGpuResources(mesh.colors)
+end
+
+
+
+# ///////////////////////////////////////////////////////////////////////
+function computeNormal(p0::Point3d,p1::Point3d,p2::Point3d)
+	return normalized(cross(p1-p0,p2-p0))
+end
+	
+
+# ///////////////////////////////////////////////////////////////////////
+function getBoundingBox(mesh::GLMesh)
+	box=invalidBox()
+	vertices=mesh.vertices.vector
+	for I in 1:3:length(vertices)
+		point=Point3d(vertices[I+0],vertices[I+1],vertices[I+2])
+		addPoint(box,point)
+	end
+	return box
+end
+
+
+# ////////////////////////////////////////////////////////////////////////
+function GLCuboid(box::Box3d)
+	points=getPoints(box)
+	
+	faces=[[1, 2, 3, 4],[4, 3, 7, 8],[8, 7, 6, 5],[5, 6, 2, 1],[6, 7, 3, 2],[8, 5, 1, 4]]
+	
+	vertices=Vector{Float32}()
+	normals =Vector{Float32}()	
+	for face in faces
+	
+		p3,p2,p1,p0 = points[face[1]],points[face[2]],points[face[3]],points[face[4]] # reverse order
+		n=0.5*(computeNormal(p0,p1,p2) + computeNormal(p0,p2,p3))
+		
+		append!(vertices,p0); append!(normals,n)
+		append!(vertices,p1); append!(normals,n)
+		append!(vertices,p2); append!(normals,n)
+		append!(vertices,p0); append!(normals,n)
+		append!(vertices,p2); append!(normals,n)
+		append!(vertices,p3); append!(normals,n)
+	end	
+		
+	ret=GLMesh(GL_TRIANGLES)
+	ret.vertices = GLVertexBuffer(vertices)
+	ret.normals  = GLVertexBuffer(normals)
+	return ret
+end
+
+	# ////////////////////////////////////////////////////////////////////////
+function GLAxis(p0::Point3d,p1::Point3d)
+
+	vertices=Vector{Float32}()
+	colors  =Vector{Float32}()
+	
+	R=Point4d(1,0,0,1); append!(vertices,p0); append!(vertices,Point3d(p1[1],p0[2],p0[3])); append!(colors,R); append!(colors,R)
+	G=Point4d(0,1,0,1); append!(vertices,p0); append!(vertices,Point3d(p0[1],p1[2],p0[3])); append!(colors,G); append!(colors,G)
+	B=Point4d(0,0,1,1); append!(vertices,p0); append!(vertices,Point3d(p0[1],p0[2],p1[3])); append!(colors,B); append!(colors,B)
+	
+	ret=GLMesh(GL_LINES)
+	ret.vertices=GLVertexBuffer(vertices)
+	ret.colors  =GLVertexBuffer(colors)
+	return ret
+end
+
+
+
+# /////////////////////////////////////////////////////////////////////
+mutable struct GLShader
+
+	vertex_source
+	frag_source
+
+	program_id::Int32
+	vertex_shader_id::Int32
+	frag_shader_id::Int32
+
+	# constructor
+	function GLShader(vertex, fragment)
+		ret=new(vertex,fragment,-1,-1,-1)
+		finalizer(releaseGpuResources, ret)
+		return ret
+	end
+
+end
+
+
+# /////////////////////////////////////////////////////////////////////
+function releaseGpuResources(shader::GLShader)
+
+	global __release_gpu_resources__
+
+	if shader.vertex_shader_id>=0
+		id=shader.vertex_shader_id
+		shader.vertex_shader_id=-1
+		glDeleteLater(function()  glDeleteShader(id) end) 
+	end	
+	
+	if shader.frag_shader_id>=0
+		id=shader.frag_shader_id
+		shader.frag_shader_id=-1
+		glDeleteLater(function()  glDeleteShader(id) end) 
+		
+	end	
+
+	if shader.program_id>=0
+		id=shader.program_id
+		shader.program_id=-1	
+		glDeleteLater(function()  glDeleteProgram(id) end)
+	end
+	
+end
+	
+
+# /////////////////////////////////////////////////////////////////////
+function createShader(type,source)
+	shader_id = glCreateShader(type)::GLuint
+	glCheckError()
+	glShaderSource(shader_id, 1, convert(Ptr{UInt8}, pointer([convert(Ptr{GLchar}, pointer(source))])) , C_NULL)
+	glCompileShader(shader_id)
+	status = GLint[0]
+	glGetShaderiv(shader_id, GL_COMPILE_STATUS, status)	
+	if status[1] == GL_FALSE
+		maxlength = 8192
+		buffer = zeros(GLchar, maxlength)
+		sizei = GLsizei[0]
+		glGetShaderInfoLog(shader_id, maxlength, sizei, buffer)
+		len = sizei[]
+		error_msg=unsafe_string(pointer(buffer), len)
+		error("shader compilation failed\n",error_msg,"\nsource\n",source)
+	end
+	return shader_id
+end
+
+
+
+# /////////////////////////////////////////////////////////////////////
+function enableProgram(shader)
+
+	if (shader.program_id<0)
+	
+		shader.program_id = glCreateProgram()
+		glCheckError()
+		
+		shader.vertex_shader_id=createShader(GL_VERTEX_SHADER,shader.vertex_source)
+		glAttachShader(shader.program_id, shader.vertex_shader_id)
+		glCheckError()
+		
+		shader.frag_shader_id=createShader(GL_FRAGMENT_SHADER,shader.frag_source)
+		glAttachShader(shader.program_id, shader.frag_shader_id)
+		glCheckError()
+
+		glLinkProgram(shader.program_id)
+		glCheckError()
+		status = GLint[0]
+		glGetProgramiv(shader.program_id, GL_LINK_STATUS, status)		
+		if status[1] == GL_FALSE 
+			maxlength = 8192
+			buffer = zeros(GLchar, maxlength)
+			sizei = GLsizei[0]
+			glGetProgramInfoLog(shader.program_id, maxlength, sizei, buffer)
+			len = sizei[]
+			error_msg = unsafe_string(pointer(buffer), len)
+			error("Error linking program\n",error_msg)
+		end
+		glCheckError()
+	end
+
+	glUseProgram(shader.program_id)
+end
+
+# /////////////////////////////////////////////////////////////////////
+function disableProgram(shader)
+	glUseProgram(0)	
+end
+
+# /////////////////////////////////////////////////////////////////////
+vert_source="""
+
+#define LIGHTING_ENABLED        arg(LIGHTING_ENABLED)
+#define COLOR_ATTRIBUTE_ENABLED arg(COLOR_ATTRIBUTE_ENABLED)
+
+uniform mat4 u_modelview_matrix;
+uniform mat4 u_projection_matrix;
+uniform vec4 u_color;
+
+attribute  vec4 a_position;
+
+#if LIGHTING_ENABLED
+attribute  vec3 a_normal;
+#endif
+
+#if COLOR_ATTRIBUTE_ENABLED
+attribute vec4 a_color;
+#endif
+
+#if LIGHTING_ENABLED
+uniform mat3 u_normal_matrix;
+uniform vec3 u_light_position;
+varying vec3 v_normal;
+varying vec3 v_light_dir;
+varying vec3 v_eye_vec;
+#endif
+
+#if COLOR_ATTRIBUTE_ENABLED
+varying vec4 v_color;
+#endif
+
+void main() 
+{
+	vec4 eye_pos= u_modelview_matrix * a_position;
+	
+#if LIGHTING_ENABLED	
+	v_normal = u_normal_matrix * a_normal;
+	vec3 vVertex = vec3(u_modelview_matrix * a_position);
+	v_light_dir  = normalize(u_light_position - vVertex);
+	v_eye_vec    = normalize(-vVertex);
+#endif	
+
+#if COLOR_ATTRIBUTE_ENABLED
+	v_color=a_color;
+#endif
+	
+	gl_Position = u_projection_matrix * eye_pos;
+}
+"""
+
+
+# /////////////////////////////////////////////////////////////////////
+frag_source="""
+
+#define LIGHTING_ENABLED        arg(LIGHTING_ENABLED)
+#define COLOR_ATTRIBUTE_ENABLED arg(COLOR_ATTRIBUTE_ENABLED)
+
+uniform vec4 u_color;
+
+#if LIGHTING_ENABLED
+varying vec3 v_normal;
+varying vec3 v_light_dir;
+varying vec3 v_eye_vec;
+#endif
+
+#if COLOR_ATTRIBUTE_ENABLED
+varying vec4 v_color;
+#endif
+
+void main() 
+{
+	vec4 frag_color=u_color; 
+	
+  #if LIGHTING_ENABLED
+	vec3 N = normalize(v_normal   );
+	vec3 L = normalize(v_light_dir);
+	vec3 E = normalize(v_eye_vec  );
+
+	vec4  u_material_ambient  = vec4(0.2,0.2,0.2,1.0);
+	vec4  u_material_diffuse  = vec4(0.8,0.8,0.8,1.0);
+	vec4  u_material_specular = vec4(0.1,0.1,0.1,1.0);
+	float u_material_shininess=100.0;	
+	
+	if(gl_FrontFacing)
+	{
+		frag_color = u_material_ambient;
+		float NdotL = abs(dot(N,L));
+		if (NdotL>0.0)
+			{
+			vec3 R = reflect(-L, N);
+			float NdotHV = abs(dot(R, E));
+			frag_color += u_material_diffuse * NdotL;
+			frag_color += u_material_specular * pow(NdotHV,u_material_shininess);
+		}
+	}
+	else
+	{
+		frag_color = u_material_ambient;
+		float NdotL = abs(dot(-N,L));
+		if (NdotL>0.0);
+		{
+			vec3 R = reflect(-L, -N);
+			float NdotHV=abs(dot(R, E));
+			frag_color += u_material_diffuse * NdotL;
+			frag_color += u_material_specular * pow(NdotHV,u_material_shininess);
+		}
+	}
+#endif
+
+#if COLOR_ATTRIBUTE_ENABLED
+	frag_color =v_color;
+#endif
+
+	gl_FragColor = frag_color;
+}
+"""
+
+
+# /////////////////////////////////////////////////////////////////////
+function GLPhongShader(lighting_enabled,color_attribute_enabled)
+	
+	v=vert_source
+	f=frag_source
+
+	v=replace(v, "arg(LIGHTING_ENABLED)"=>lighting_enabled ? "1" : "0")
+	f=replace(f, "arg(LIGHTING_ENABLED)"=>lighting_enabled ? "1" : "0")
+
+	v=replace(v, "arg(COLOR_ATTRIBUTE_ENABLED)"=>color_attribute_enabled ? "1" : "0")
+	f=replace(f, "arg(COLOR_ATTRIBUTE_ENABLED)"=>color_attribute_enabled ? "1" : "0")
+
+	# this is needed for #version 330
+	# v=replace(v, "attribute"=>"in")
+	# f=replace(f, "attribute"=>"in")
+
+	# v=replace(v, "varying"=>"out")
+	# f=replace(f, "varying"=>"out")
+
+	# v=string("#version 120\n",v)
+	# f=string("#version 120\n",f)
+
+	return GLShader(v,f)
+end
+
+
+# /////////////////////////////////////////////////////////////
+mutable struct FrustumMap
+
+	viewport::Matrix4d
+	projection::Matrix4d
+	modelview::Matrix4d
+	
+	inv_viewport::Matrix4d
+	inv_projection::Matrix4d
+	inv_modelview::Matrix4d	
+	
+	# constructor
+	function FrustumMap(viewport,projection::Matrix4d,modelview::Matrix4d)
+		x=viewport[1]
+		y=viewport[2]
+		w=viewport[3]
+		h=viewport[4]
+		viewport_T=Matrix4d(
+			w/2.0,   0.0,   0.0, x+w/2.0,
+			  0.0, h/2.0,   0.0, y+h/2.0,
+			  0.0,   0.0, 1/2.0,   1/2.0,
+			  0.0,   0.0,   0.0,     1.0)
+		new(viewport_T,projection,modelview,inv(viewport_T),inv(projection),inv(modelview))
+	end	
+	
+end
+
+function projectPoint(map::FrustumMap,p3::Point3d)
+	p4=(map.viewport * (map.projection * (map.modelview * Point4d(p3[1],p3[2],p3[3],1.0))))
+	return Point3d(p4[1]/p4[4],p4[2]/p4[4],p4[3]/p4[4])
+end
+
+function unprojectPoint(map::FrustumMap,x::Float64,y::Float64, z::Float64)
+	p4 = (map.inv_modelview * (map.inv_projection * (map.inv_viewport * Point4d(x,y,z, 1.0))))
+	return Point3d(p4[1]/p4[4],p4[2]/p4[4],p4[3]/p4[4])
+end	
 
 # /////////////////////////////////////////////////////////////////////
 mutable struct Viewer
@@ -450,11 +987,12 @@ function handleKeyPressEvent(viewer,key, scancode, action, mods)
 	
 end	
 
+if abspath(PROGRAM_FILE) == @__FILE__
 
-# example: see GLMesh.jl for an example about how to generate a mesh
-VIEW([
-	GLCuboid(Box3d(Point3d(0,0,0),Point3d(1,1,1)))
-	GLAxis(Point3d(-2,-2,-2),Point3d(+2,+2,+2))
-	])
-	
-	
+	# example: see GLMesh.jl for an example about how to generate a mesh
+	VIEW([
+		GLCuboid(Box3d(Point3d(0,0,0),Point3d(1,1,1)))
+		GLAxis(Point3d(-2,-2,-2),Point3d(+2,+2,+2))
+		])
+		
+end

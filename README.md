@@ -1,13 +1,16 @@
-
+Links:
+- https://github.com/scrgiorgio/pyplasm-v2
 
 # Examples
 
 ```
 set PYTHONPATH=src
 python src/pyplasm/fenvs.py
-python src/pyplasm/temple.py
 python src/pyplasm/viewer.py
-python src/pyplasm/pisa.py
+
+
+python examples/python/temple.py
+python examples/python/pisa.py
 ```
 
 Dependencies:
@@ -27,6 +30,7 @@ using Pkg
 Pkg.add("ModernGL")
 Pkg.add("GLFW")
 Pkg.add("StaticArrays")
+exit()
 
 julia src/julia/Viewer.jl
 

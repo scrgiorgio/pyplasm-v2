@@ -3,6 +3,20 @@ from pyplasm.geom import *
 # this is needed for compiting the hull
 import scipy
 import scipy.spatial
+
+# /////////////////////////////////////////////////////////////////
+# computeTetOrientation
+#  see http://math.stackexchange.com/questions/183030/given-a-tetrahedron-how-to-find-the-outward-surface-normals-for-each-side)
+#  see http://www.geuz.org/pipermail/gmsh/2012/007251.html
+
+def GoodTetOrientation(v0,v1,v2,v3):
+  v0=list(v0) + [0]*(3-len(v0));v0=Point3d(*v0)
+  v1=list(v1) + [0]*(3-len(v1));v1=Point3d(*v1)
+  v2=list(v2) + [0]*(3-len(v2));v2=Point3d(*v2)
+  v3=list(v3) + [0]*(3-len(v3));v3=Point3d(*v3)
+  n=Point3d.crossProduct(v3-v1,v2-v1)
+  return Point3d.dotProduct(n,v0-v1)>0
+  
 	 
 # ///////////////////////////////////////////////////////////////
 class MkPol:
@@ -163,7 +177,7 @@ class MkPol:
 				triangles.vertices.append(p2); triangles.normals.append(n)    
 
 			elif (hull_dim==4):
-				for T in TET_ORIENTED_TRIANGLES:
+				for T in [[0,1,3],[0,3,2],[0,2,1],[1,2,3]]:
 					p0=SF.points[hull[T[0]]]; p0=list(p0) + [0.0]*(3-len(p0)) 
 					p1=SF.points[hull[T[1]]]; p1=list(p1) + [0.0]*(3-len(p1))
 					p2=SF.points[hull[T[2]]]; p2=list(p2) + [0.0]*(3-len(p2))

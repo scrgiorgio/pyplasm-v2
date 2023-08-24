@@ -1,8 +1,6 @@
 import sys,functools,math,copy
 import numpy
 
-TET_ORIENTED_TRIANGLES=[[0,1,3],[0,3,2],[0,2,1],[1,2,3]]
-
 # /////////////////////////////////////////////////////////////////////////
 class Point3d:
 	
@@ -191,8 +189,6 @@ class Quaternion:
 			a.w * b.y + a.y * b.w + a.z * b.x - a.x * b.z,
 			a.w * b.z + a.z * b.w + a.x * b.y - a.y * b.x)		
 	
-	
-		
 # /////////////////////////////////////////////////////////////////////
 class Box3d:
 
@@ -237,8 +233,6 @@ class Box3d:
 				self.addPoint(point)
 		return self
 		
-
-
 # //////////////////////////////////////////////////////////////////////
 class BoxNd:
 	
@@ -316,7 +310,6 @@ class BoxNd:
 	# addBox
 	def addBox(self,other):
 		return self.addPoint(other.p1).addPoint(other.p2)
-	
 	
 # /////////////////////////////////////////////////////////////////////
 class Matrix4d:
@@ -529,7 +522,6 @@ class Matrix4d:
 		ret=m.transposed()
 		return ret
 	
-
 # ////////////////////////////////////////////////////////////
 # MatrixNd class (first row/column are in omogeneous coordinates!)
 class MatrixNd:
@@ -637,17 +629,4 @@ def ComputeNormal(p0,p1,p2):
   p2=list(p2) + [0]*(3-len(p2))
   n=Point3d.crossProduct(Point3d(*p1)-Point3d(*p0),Point3d(*p2)-Point3d(*p0)).normalized()
   return [n.x,n.y,n.z]    
-  
-# /////////////////////////////////////////////////////////////////
-# computeTetOrientation
-#  see http://math.stackexchange.com/questions/183030/given-a-tetrahedron-how-to-find-the-outward-surface-normals-for-each-side)
-#  see http://www.geuz.org/pipermail/gmsh/2012/007251.html
-
-def GoodTetOrientation(v0,v1,v2,v3):
-  v0=list(v0) + [0]*(3-len(v0));v0=Point3d(*v0)
-  v1=list(v1) + [0]*(3-len(v1));v1=Point3d(*v1)
-  v2=list(v2) + [0]*(3-len(v2));v2=Point3d(*v2)
-  v3=list(v3) + [0]*(3-len(v3));v3=Point3d(*v3)
-  n=Point3d.crossProduct(v3-v1,v2-v1)
-  return Point3d.dotProduct(n,v0-v1)>0
   

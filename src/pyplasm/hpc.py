@@ -218,7 +218,7 @@ class Hpc:
 					if   dim==0: bfaces=[[0]]
 					elif dim==1: bfaces=[[0],[1]]
 					elif dim==2: bfaces=[[0,1],[1,2],[2,0]]
-					elif dim==3: bfaces=TET_ORIENTED_TRIANGLES
+					elif dim==3: bfaces=[[0,1,3],[0,3,2],[0,2,1],[1,2,3]]
 					else: raise Exception("not supported")
 				else:
 					raise Exception("internal error")
