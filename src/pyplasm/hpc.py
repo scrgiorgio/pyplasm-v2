@@ -249,20 +249,7 @@ class PointDb:
 # ///////////////////////////////////////////////////////////////
 class MkPol:
 
-
-	"""
-	THIS class is partially wrong, since hull.simplices contains the face simplices, I should instead do:
-
-	from scipy.spatial import ConvexHull,Delaunay
-	hull=ConvexHull([[0,0],[0.2,0.2],[1,0],[0.3,0.3],[1,1],[0.4,0.4],[0,1],[0.5,0.5],[0.8,0.8]])
-	points=[tuple(hull.points[P]) for P in hull.vertices]
-
-	d=Delaunay(points)
-	points,simplices=d.points,d.vertices
-	print(points,simplices) # vertices contains the list of simplices
-
-	"""
-	
+	# constructor
 	def __init__(self,points=[[]],hulls=None, simplicial_form=False):
 
 		if hulls is None:
@@ -302,78 +289,88 @@ class MkPol:
 		if self.simplicial_form:
 			return self
 		
-		dim=self.dim()
+		pdim=self.dim()
 		
 		# in zero dimension you can have only a point in zero!
-		if dim==0: 
-			return MkPol(points=[],hulls=[],simplicial_form=True)
+		if pdim==0: 
+			return MkPol(points=[],hulls=[], simplicial_form=True)
+
 			
-		POINTDB   = {}
-		SIMPLICES = []
+		db   = PointDb()
+		simplices = []
 	
 		for hull in self.hulls:
 
-			# already triangulated (hoping it's full dimensional, cannot be sure)
-			if (len(hull)<=(dim+1)):
-				points    = [self.points[I] for I in hull]
-				simplices = [range(len(points))]
-				
-			# special case for 1D
-			elif (dim==1):
-				box       = BoxNd(1).addPoints([self.points[I] for I in hull])
-				points    = [[box.p1],[box.p2]]
-				simplices = [[0,1]]
-				
-			# all other cases
-			else:
-				delaunay  = scipy.spatial.Delaunay([self.points[I] for I in hull])
-				points    = delaunay.points
-				simplices = delaunay.vertices
-			
-			mapped={}
-			for P in range(len(points)):
-				point = tuple(points[P])
-				if not point in POINTDB: POINTDB[point]=len(POINTDB)
-				mapped[P]=POINTDB[point]
-					
-			for simplex in simplices:
-				SIMPLICES.append([mapped[I] for I in simplex])
+			# hopefully it's full dimensional
+			# this case is needed when I map the boundary (creating flat triangles in 3d)
+			if len(hull)<=pdim:
+				simplices.append([db.getIndex(self.points[idx]) for idx in hull])
+				continue
 
-		POINTS=[None]*len(POINTDB)
-		for point,num in POINTDB.items(): 
-			POINTS[num]=point
-			
+			# special case for 1D
+			if pdim==1:
+				box = BoxNd(1).addPoints([self.points[I] for I in hull])
+				simplices.append([db.getIndex(box.p1), db.getIndex(box.p2)])
+				continue
+
+			# all other cases
+			"""
+			THIS  is partially wrong, since hull.simplices contains the face simplices, I should instead do:
+
+			from scipy.spatial import ConvexHull,Delaunay
+			hull=ConvexHull([[0,0],[0.2,0.2],[1,0],[0.3,0.3],[1,1],[0.4,0.4],[0,1],[0.5,0.5],[0.8,0.8]])
+			points=[tuple(hull.points[P]) for P in hull.vertices]
+
+			d=Delaunay(points)
+			points,simplices=d.points,d.vertices
+			print(points,simplices) # vertices contains the list of simplices
+			"""
+		
+			d  = scipy.spatial.Delaunay([self.points[I] for I in hull])
+			for simplex in d.vertices: # d.vertices contains simplices
+				simplices.append([db.getIndex(d.points[idx]) for idx in simplex])
+
+		ret=MkPol(db.toList(),simplices,simplicial_form=True) 
+		ret.fixOrientation()
+		return ret
+	
+	# fixOrientation
+	def fixOrientation(self):
+		assert(self.simplicial_form)
+
+		pdim=self.dim()
+
+		if pdim!=2 and pdim!=3:
+			return 
+
 		# fix orientation of triangles on the plane (important for a coherent orientation)
-		if (dim==2):
-			fixed_orientation=[]
-			for simplex in SIMPLICES:
+		if pdim==2:
+			fixed=[]
+			for simplex in self.hulls:
 				if len(simplex)==3:
-					p0=POINTS[simplex[0]]
-					p1=POINTS[simplex[1]]
-					p2=POINTS[simplex[2]]
+					p0=self.points[simplex[0]]
+					p1=self.points[simplex[1]]
+					p2=self.points[simplex[2]]
 					n=ComputeTriangleNormal(p0,p1,p2)
-					if n[2]<0:
-						simplex=[simplex[2],simplex[1],simplex[0]]
-				fixed_orientation.append(simplex)
-			SIMPLICES=fixed_orientation
+					if n[2]<0: simplex=[simplex[2],simplex[1],simplex[0]]
+				fixed.append(simplex)
+			self.hulls=fixed
 			
 		# fix orientation of tetahedra
-		if (dim==3):
-			fixed_orientation=[]
-			for simplex in SIMPLICES:
+		if pdim==3:
+			fixed=[]
+			for simplex in self.hulls:
 				if len(simplex)==4:
-					p0=POINTS[simplex[0]]
-					p1=POINTS[simplex[1]]
-					p2=POINTS[simplex[2]]
-					p3=POINTS[simplex[3]]
+					p0=self.points[simplex[0]]
+					p1=self.points[simplex[1]]
+					p2=self.points[simplex[2]]
+					p3=self.points[simplex[3]]
 					if not GoodTetOrientation(p0,p1,p2,p3): 
 						simplex=[simplex[2],simplex[1],simplex[0],simplex[3]]
-				fixed_orientation.append(simplex)
-			SIMPLICES=fixed_orientation       
-			
-		# store for the next time!
-		self.__cached_simplicial_form__=MkPol(POINTS,SIMPLICES) 
-		return self.__cached_simplicial_form__
+				fixed.append(simplex)
+			self.hulls=fixed
+		
+		return self
 	 
 	# getBatches
 	def getBatches(self):
@@ -730,8 +727,6 @@ class Testing(unittest.TestCase):
 		self.assertEqual(mk.dim(),2)
 		self.assertEqual(mk.box(),BoxNd([0,0],[1,1]))
 		mk=mk.toSimplicialForm()
-		print("points",mk.points)
-		print("hulls",mk.hulls)
 		# NOT QUITE RIGHT
 
 	def testHpc(self):
