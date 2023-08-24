@@ -283,11 +283,11 @@ class MkPol:
 			return self.__cached_simplicial_form__
  
 		POINTDB   = {}
-		SIMPLICES = []      
+		SIMPLICES = []
 	
 		for hull in self.hulls:
 
-			# already triangulated (hoping it's full dimensional, cannot be sure)            
+			# already triangulated (hoping it's full dimensional, cannot be sure)
 			if (len(hull)<=(dim+1)):
 				points    = [self.points[I] for I in hull]
 				simplices = [range(len(points))]
@@ -697,7 +697,16 @@ class Testing(unittest.TestCase):
 		self.assertEqual(MatrixNd.rotate(1,2,angle),MatrixNd([[1,0,0],[0.0,math.cos(angle),-math.sin(angle)],[0.0,+math.sin(angle),math.cos(angle)]]))
 
 	def testMkPol(self):
-		pass
+		# 2d
+		points=[[0,0],[1,0],[1,1],[0,1],[0.5,0.5],[0.2,0.8]]
+		hulls=[list(range(len(points)))]
+		mk=MkPol(points,hulls)
+		self.assertEqual(mk.dim(),2)
+		self.assertEqual(mk.box(),BoxNd([0,0],[1,1]))
+		mk=mk.toSimplicialForm()
+		print("points",mk.points)
+		print("hulls",mk.hulls)
+		# NOT QUITE RIGHT
 
 	def testHpc(self):
 		pass
