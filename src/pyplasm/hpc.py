@@ -316,8 +316,17 @@ class MkPol:
 			# all other cases
 			points=[self.points[idx] for idx in hull]
 			h=scipy.spatial.ConvexHull(points)
+
+
+
 			points=[tuple(h.points[idx]) for idx in h.vertices]
+
+			print("IN Delaunay points\n",points)
+
 			d=scipy.spatial.Delaunay(points)
+			print("OUT Delaunay points\n",d.points)
+			print("OUT Delaunay vertices\n",d.vertices)
+
 			for simplex in d.vertices: # d.vertices contains simplices
 				simplices.append([db.getIndex(d.points[idx]) for idx in simplex])
 
@@ -711,14 +720,54 @@ class Testing(unittest.TestCase):
 		self.assertEqual(MatrixNd.rotate(1,2,angle),MatrixNd([[1,0,0],[0.0,math.cos(angle),-math.sin(angle)],[0.0,+math.sin(angle),math.cos(angle)]]))
 
 	def testMkPol(self):
-		# 2d
-		points=[[0,0],[1,0],[1,1],[0,1],[0.5,0.5],[0.2,0.8]]
+
+		# 1D
+		points=[[0],[1],[2],   [8],[9],[10]]
+		hulls=[[0,1,2],[3,4,5]]
+		mk=MkPol(points,hulls)
+		self.assertEqual(mk.dim(),1)
+		self.assertEqual(mk.box(),BoxNd([0],[10]))
+		mk=mk.toSimplicialForm()
+		self.assertEqual(len(mk.points),4)
+		self.assertEqual(len(mk.hulls),2)
+		self.assertEqual(mk.box(),BoxNd([0],[10]))
+
+		# 2D
+		points=[[0,0],[0.2,0.2],[1,0],[0.3,0.3],[1,1],[0.4,0.4],[0,1],[0.5,0.5],[0.2,0.8]]
 		hulls=[list(range(len(points)))]
 		mk=MkPol(points,hulls)
 		self.assertEqual(mk.dim(),2)
 		self.assertEqual(mk.box(),BoxNd([0,0],[1,1]))
 		mk=mk.toSimplicialForm()
-		# NOT QUITE RIGHT
+		self.assertEqual(len(mk.points),4)
+		self.assertEqual(len(mk.hulls),2)
+		self.assertEqual(mk.box(),BoxNd([0,0],[1,1]))
+
+		# 3D
+		points=[
+			[0.0, 0.0, 0.0],
+			[1.0, 0.0, 0.0],
+			[1.0, 1.0, 0.0],
+			[0.0, 1.0, 0.0],
+
+			[0.0, 0.0, 1.0],
+			[1.0, 0.0, 1.0],
+			[1.0, 1.0, 1.0],
+			[0.0, 1.0, 1.0],			
+			
+			[0.1, 0.1, 0.1],
+			[0.2, 0.2, 0.2],
+			[0.3, 0.3, 0.3]]
+		hulls=[list(range(len(points)))]
+
+		mk=MkPol(points,hulls)
+		self.assertEqual(mk.dim(),3)
+		self.assertEqual(mk.box(),BoxNd([0.0,0.0,0.0], [1.0, 1.0, 1.0]))
+		mk=mk.toSimplicialForm()
+		self.assertEqual(mk.dim(),3)
+		self.assertEqual(mk.box(),BoxNd([0.0, 0.0, 0.0], [1.0, 1.0, 1.0]))
+		self.assertEqual(len(mk.points),8)
+		self.assertEqual(len(mk.hulls),6)
 
 	def testHpc(self):
 		pass
@@ -735,7 +784,7 @@ if __name__=="__main__":
 	tests.testMat()
 	tests.testMkPol()
 	tests.testHpc()
-	print("all done")
+	print("all test ok")
 
 	
 
