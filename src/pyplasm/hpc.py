@@ -227,6 +227,24 @@ class MatrixNd:
 		T[i,i]=+math.cos(angle) ; T[i,j]=-math.sin(angle)
 		T[j,i]=+math.sin(angle) ; T[j,j]=+math.cos(angle)
 		return T 
+	
+# ///////////////////////////////////////////////////////////////
+class PointDb:
+
+	# constructor
+	def __init__(self):
+		self.m={}
+
+	# getIndex
+	def getIndex(self, p):
+		p=tuple(p)
+		if not p in self.m:
+			self.m[p]=len(self.m)
+		return self.m[p]
+	
+	# toList
+	def toList(self):
+		return [p for p in self.m]
 
 # ///////////////////////////////////////////////////////////////
 class MkPol:
@@ -245,29 +263,24 @@ class MkPol:
 
 	"""
 	
-	def __init__(self,points=[[]],hulls=None):
-		self.__cached_simplicial_form__=None # optimization...
-		self.points = points
-		self.hulls  = hulls if hulls is not None else [range(len(points))]
-		
-		# filter not used points (at least the box() will be correct!)
-		used=set([item for sublist in self.hulls for item in sublist])
-		if len(used)!=len(points):
-			unused=set(range(len(points)))-used
-			
-			# filter used points
-			new_points,map_hulls=[],{}
-			for N in range(len(points)):
-				if not N in unused:
-					new_points.append(self.points[N])
-					map_hulls[N]=len(map_hulls)
-				
-			# remap hulls
-			new_hulls=[[map_hulls[idx] for idx in hull] for hull in self.hulls]
-			
-			self.points=new_points
-			self.hulls =new_hulls
-		
+	def __init__(self,points=[[]],hulls=None, simplicial_form=False):
+
+		if hulls is None:
+			hulls=[range(len(points))]
+
+		self.simplicial_form=simplicial_form
+
+		if simplicial_form:
+			self.points=points
+			self.hulls=hulls
+		else:
+			db=PointDb()
+			simplified_hulls=[]
+			for hull in hulls:
+				simplified_hulls.append([db.getIndex(points[idx]) for idx in hull])
+			self.points=db.toList()
+			self.hulls=simplified_hulls
+
 	# dim
 	def dim(self):
 		if len(self.points)==0: return 0
@@ -276,7 +289,7 @@ class MkPol:
 	# box
 	def box(self):
 		ret=BoxNd(self.dim())
-		ret.addPoints(self.points)
+		if self.points: ret.addPoints(self.points)
 		return ret
 		
 	# __repr__
@@ -285,17 +298,16 @@ class MkPol:
 		
 	# toSimplicialForm
 	def toSimplicialForm(self):
+
+		if self.simplicial_form:
+			return self
 		
 		dim=self.dim()
 		
 		# in zero dimension you can have only a point in zero!
-		if (dim==0): 
-			return MkPol()
+		if dim==0: 
+			return MkPol(points=[],hulls=[],simplicial_form=True)
 			
-		# already calculated
-		if (self.__cached_simplicial_form__):
-			return self.__cached_simplicial_form__
- 
 		POINTDB   = {}
 		SIMPLICES = []
 	
@@ -368,7 +380,7 @@ class MkPol:
 		
 		dim=self.dim()
 					
-		SF=self.toSimplicialForm()
+		simplicial_form=self.toSimplicialForm()
 		
 		# export point, lines, triangles
 		from pyplasm.viewer import GLBatch
@@ -377,24 +389,24 @@ class MkPol:
 		lines     = GLBatch(GLBatch.LINES    ); lines    .vertices=[]
 		triangles = GLBatch(GLBatch.TRIANGLES); triangles.vertices=[]; triangles.normals=[]
 		
-		for hull in SF.hulls:
+		for hull in simplicial_form.hulls:
 			
 			hull_dim=len(hull)
 			
 			if (hull_dim==1):
-				p0=SF.points[hull[0]]; p0=list(p0) + [0.0]*(3-len(p0))
+				p0=simplicial_form.points[hull[0]]; p0=list(p0) + [0.0]*(3-len(p0))
 				points.vertices.append(p0) 
 				
 			elif (hull_dim==2):
-				p0=SF.points[hull[0]]; p0=list(p0) + [0.0]*(3-len(p0))
-				p1=SF.points[hull[1]]; p1=list(p1) + [0.0]*(3-len(p1)) 
+				p0=simplicial_form.points[hull[0]]; p0=list(p0) + [0.0]*(3-len(p0))
+				p1=simplicial_form.points[hull[1]]; p1=list(p1) + [0.0]*(3-len(p1)) 
 				lines.vertices.append(p0);
 				lines.vertices.append(p1)
 				
 			elif (hull_dim==3):
-				p0=SF.points[hull[0]]; p0=list(p0) + [0.0]*(3-len(p0)) 
-				p1=SF.points[hull[1]]; p1=list(p1) + [0.0]*(3-len(p1))
-				p2=SF.points[hull[2]]; p2=list(p2) + [0.0]*(3-len(p2))
+				p0=simplicial_form.points[hull[0]]; p0=list(p0) + [0.0]*(3-len(p0)) 
+				p1=simplicial_form.points[hull[1]]; p1=list(p1) + [0.0]*(3-len(p1))
+				p2=simplicial_form.points[hull[2]]; p2=list(p2) + [0.0]*(3-len(p2))
 				n=ComputeTriangleNormal(p0,p1,p2)
 				triangles.vertices.append(p0); triangles.normals.append(n)
 				triangles.vertices.append(p1); triangles.normals.append(n)
@@ -402,9 +414,9 @@ class MkPol:
 
 			elif (hull_dim==4):
 				for T in [[0,1,3],[0,3,2],[0,2,1],[1,2,3]]:
-					p0=SF.points[hull[T[0]]]; p0=list(p0) + [0.0]*(3-len(p0)) 
-					p1=SF.points[hull[T[1]]]; p1=list(p1) + [0.0]*(3-len(p1))
-					p2=SF.points[hull[T[2]]]; p2=list(p2) + [0.0]*(3-len(p2))
+					p0=simplicial_form.points[hull[T[0]]]; p0=list(p0) + [0.0]*(3-len(p0)) 
+					p1=simplicial_form.points[hull[T[1]]]; p1=list(p1) + [0.0]*(3-len(p1))
+					p2=simplicial_form.points[hull[T[2]]]; p2=list(p2) + [0.0]*(3-len(p2))
 					n=ComputeTriangleNormal(p0,p1,p2)
 					triangles.vertices.append(p0); triangles.normals.append(n)
 					triangles.vertices.append(p1); triangles.normals.append(n)

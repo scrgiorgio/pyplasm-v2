@@ -1314,7 +1314,7 @@ class Bsp:
 					x2,y2=vertices[1][0],vertices[1][1]
 					normal=[(y2-y1),-(x2-x1)]
 				elif dim==3:
-					normal = ComputeNormal(vertices[0],vertices[1],vertices[2])
+					normal = ComputeTriangleNormal(vertices[0],vertices[1],vertices[2])
 				else:
 					raise Exception("todo")
 					
