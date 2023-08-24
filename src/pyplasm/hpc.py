@@ -325,7 +325,7 @@ class MkPol:
 					p0=POINTS[simplex[0]]
 					p1=POINTS[simplex[1]]
 					p2=POINTS[simplex[2]]
-					n=ComputeNormal(p0,p1,p2)
+					n=ComputeTriangleNormal(p0,p1,p2)
 					if n[2]<0:
 						simplex=[simplex[2],simplex[1],simplex[0]]
 				fixed_orientation.append(simplex)
