@@ -281,7 +281,7 @@ class MkPol:
 		
 	# __repr__
 	def __repr__(self):
-		return "MkPol(" + repr(self.points) +"," + repr(self.hulls)+")" 
+		return f"MkPol(points={self.points}, hulls={self.hulls}, simplicial_form={self.simplicial_form})"
 		
 	# toSimplicialForm
 	def toSimplicialForm(self):
@@ -321,11 +321,11 @@ class MkPol:
 
 			points=[tuple(h.points[idx]) for idx in h.vertices]
 
-			print("IN Delaunay points\n",points)
+			#print("IN Delaunay points\n",points)
 
 			d=scipy.spatial.Delaunay(points)
-			print("OUT Delaunay points\n",d.points)
-			print("OUT Delaunay vertices\n",d.vertices)
+			#print("OUT Delaunay points\n",d.points)
+			#print("OUT Delaunay vertices\n",d.vertices)
 
 			for simplex in d.vertices: # d.vertices contains simplices
 				simplices.append([db.getIndex(d.points[idx]) for idx in simplex])
@@ -724,24 +724,24 @@ class Testing(unittest.TestCase):
 		# 1D
 		points=[[0],[1],[2],   [8],[9],[10]]
 		hulls=[[0,1,2],[3,4,5]]
-		mk=MkPol(points,hulls)
-		self.assertEqual(mk.dim(),1)
-		self.assertEqual(mk.box(),BoxNd([0],[10]))
-		mk=mk.toSimplicialForm()
-		self.assertEqual(len(mk.points),4)
-		self.assertEqual(len(mk.hulls),2)
-		self.assertEqual(mk.box(),BoxNd([0],[10]))
+		obj=MkPol(points,hulls)
+		self.assertEqual(obj.dim(),1)
+		self.assertEqual(obj.box(),BoxNd([0],[10]))
+		obj=obj.toSimplicialForm()
+		self.assertEqual(len(obj.points),4)
+		self.assertEqual(len(obj.hulls),2)
+		self.assertEqual(obj.box(),BoxNd([0],[10]))
 
 		# 2D
 		points=[[0,0],[0.2,0.2],[1,0],[0.3,0.3],[1,1],[0.4,0.4],[0,1],[0.5,0.5],[0.2,0.8]]
 		hulls=[list(range(len(points)))]
-		mk=MkPol(points,hulls)
-		self.assertEqual(mk.dim(),2)
-		self.assertEqual(mk.box(),BoxNd([0,0],[1,1]))
-		mk=mk.toSimplicialForm()
-		self.assertEqual(len(mk.points),4)
-		self.assertEqual(len(mk.hulls),2)
-		self.assertEqual(mk.box(),BoxNd([0,0],[1,1]))
+		obj=MkPol(points,hulls)
+		self.assertEqual(obj.dim(),2)
+		self.assertEqual(obj.box(),BoxNd([0,0],[1,1]))
+		obj=obj.toSimplicialForm()
+		self.assertEqual(len(obj.points),4)
+		self.assertEqual(len(obj.hulls),2)
+		self.assertEqual(obj.box(),BoxNd([0,0],[1,1]))
 
 		# 3D
 		points=[
@@ -760,17 +760,63 @@ class Testing(unittest.TestCase):
 			[0.3, 0.3, 0.3]]
 		hulls=[list(range(len(points)))]
 
-		mk=MkPol(points,hulls)
-		self.assertEqual(mk.dim(),3)
-		self.assertEqual(mk.box(),BoxNd([0.0,0.0,0.0], [1.0, 1.0, 1.0]))
-		mk=mk.toSimplicialForm()
-		self.assertEqual(mk.dim(),3)
-		self.assertEqual(mk.box(),BoxNd([0.0, 0.0, 0.0], [1.0, 1.0, 1.0]))
-		self.assertEqual(len(mk.points),8)
-		self.assertEqual(len(mk.hulls),6)
+		obj=MkPol(points,hulls)
+		self.assertEqual(obj.dim(),3)
+		self.assertEqual(obj.box(),BoxNd([0.0,0.0,0.0], [1.0, 1.0, 1.0]))
+		obj=obj.toSimplicialForm()
+		self.assertEqual(obj.dim(),3)
+		self.assertEqual(obj.box(),BoxNd([0.0, 0.0, 0.0], [1.0, 1.0, 1.0]))
+		self.assertEqual(len(obj.points),8)
+		self.assertEqual(len(obj.hulls),6)
 
 	def testHpc(self):
-		pass
+		points=[
+			[0.0,0.0],
+			[1.0,0.0],
+			[1.0,1.0],
+			[0.0,1.0],
+
+			[0.2,0.2],
+			[0.3,0.3],
+			[0.4,0.4],
+			[0.5,0.5],
+			[0.2,0.8]]
+		hulls=[list(range(len(points)))]		
+		obj=Hpc.mkpol(points=points,hulls=hulls)
+		self.assertEqual(obj.dim(),2)
+		self.assertEqual(obj.box(),BoxNd([0,0],[1,1]))
+
+		obj=Hpc.Struct([obj])
+		self.assertEqual(obj.dim(),2)
+		self.assertEqual(obj.box(),BoxNd([0,0],[1,1]))
+
+		# cube
+		obj=Hpc.cube(3,0.0,1.0)
+		self.assertEqual(obj.dim(),3)
+		self.assertEqual(obj.box(),BoxNd([0,0,0],[1,1,1]))
+		self.assertEqual(obj.box(),BoxNd([0,0,0],[1,1,1]))
+		v=obj.toList()
+		self.assertEqual(len(v),1)
+		T,properties,obj=v[0]
+		obj=obj.toSimplicialForm()
+		self.assertEqual(obj.dim(),3)
+		self.assertEqual(obj.box(),BoxNd([0.0, 0.0, 0.0], [1.0, 1.0, 1.0]))
+		self.assertEqual(len(obj.points),8)
+		self.assertEqual(len(obj.hulls),6)
+
+		# simplex
+		obj=Hpc.simplex(3)
+		self.assertEqual(obj.dim(),3)
+		self.assertEqual(obj.box(),BoxNd([0,0,0],[1,1,1]))
+		v=obj.toList()
+		self.assertEqual(len(v),1)
+		T,properties,obj=v[0]
+		obj=obj.toSimplicialForm()
+		self.assertEqual(obj.dim(),3)
+		self.assertEqual(obj.box(),BoxNd([0.0, 0.0, 0.0], [1.0, 1.0, 1.0]))
+		self.assertEqual(len(obj.points),4)
+		self.assertEqual(len(obj.hulls),1)
+
 
 
 ######################################################################
