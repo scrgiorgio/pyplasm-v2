@@ -230,6 +230,20 @@ class MatrixNd:
 
 # ///////////////////////////////////////////////////////////////
 class MkPol:
+
+
+	"""
+	THIS class is partially wrong, since hull.simplices contains the face simplices, I should instead do:
+
+	from scipy.spatial import ConvexHull,Delaunay
+	hull=ConvexHull([[0,0],[0.2,0.2],[1,0],[0.3,0.3],[1,1],[0.4,0.4],[0,1],[0.5,0.5],[0.8,0.8]])
+	points=[tuple(hull.points[P]) for P in hull.vertices]
+
+	d=Delaunay(points)
+	points,simplices=d.points,d.vertices
+	print(points,simplices) # vertices contains the list of simplices
+
+	"""
 	
 	def __init__(self,points=[[]],hulls=None):
 		self.__cached_simplicial_form__=None # optimization...
