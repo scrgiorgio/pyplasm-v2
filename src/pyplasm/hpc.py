@@ -250,23 +250,19 @@ class PointDb:
 class MkPol:
 
 	# constructor
-	def __init__(self,points=[[]],hulls=None, simplicial_form=False):
+	def __init__(self,points=[],hulls=None):
 
 		if hulls is None:
 			hulls=[range(len(points))]
 
-		self.simplicial_form=simplicial_form
 
-		if simplicial_form:
-			self.points=points
-			self.hulls=hulls
-		else:
-			db=PointDb()
-			simplified_hulls=[]
-			for hull in hulls:
-				simplified_hulls.append([db.getIndex(points[idx]) for idx in hull])
-			self.points=db.toList()
-			self.hulls=simplified_hulls
+
+		db=PointDb()
+		simplified_hulls=[]
+		for hull in hulls:
+			simplified_hulls.append([db.getIndex(points[idx]) for idx in hull])
+		self.points=db.toList()
+		self.hulls=simplified_hulls
 
 	# dim
 	def dim(self):
@@ -281,21 +277,24 @@ class MkPol:
 		
 	# __repr__
 	def __repr__(self):
-		return f"MkPol(points={self.points}, hulls={self.hulls}, simplicial_form={self.simplicial_form})"
+		return f"MkPol(points={self.points}, hulls={self.hulls})"
 		
 	# toSimplicialForm
 	def toSimplicialForm(self):
 
-		if self.simplicial_form:
+		if not self.points or not self.hulls:
 			return self
 		
 		pdim=self.dim()
 		
 		# in zero dimension you can have only a point in zero!
 		if pdim==0: 
-			return MkPol(points=[],hulls=[], simplicial_form=True)
+			return self
+		
+		already_simplicial=all([len(hull)<=(pdim+1) for hull in self.hulls])
+		if already_simplicial:
+			return self
 
-			
 		db   = PointDb()
 		simplices = []
 	
@@ -316,30 +315,20 @@ class MkPol:
 			# all other cases
 			points=[self.points[idx] for idx in hull]
 			h=scipy.spatial.ConvexHull(points)
-
-
-
 			points=[tuple(h.points[idx]) for idx in h.vertices]
-
-			#print("IN Delaunay points\n",points)
-
 			d=scipy.spatial.Delaunay(points)
-			#print("OUT Delaunay points\n",d.points)
-			#print("OUT Delaunay vertices\n",d.vertices)
 
 			for simplex in d.vertices: # d.vertices contains simplices
 				simplices.append([db.getIndex(d.points[idx]) for idx in simplex])
 
-		ret=MkPol(db.toList(),simplices,simplicial_form=True) 
-		ret.fixOrientation()
+		ret=MkPol(db.toList(),simplices) 
+		ret.__fixOrientation()
 		return ret
 	
 	# fixOrientation
-	def fixOrientation(self):
-		assert(self.simplicial_form)
+	def __fixOrientation(self):
 
 		pdim=self.dim()
-
 		if pdim!=2 and pdim!=3:
 			return 
 
