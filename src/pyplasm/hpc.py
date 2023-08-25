@@ -791,7 +791,7 @@ class Testing(unittest.TestCase):
 		self.assertEqual(obj.box(),BoxNd([0,0],[1,1]))
 
 		# cube
-		obj=Hpc.cube(3,0.0,1.0)
+		obj=Hpc.cube(3, 0.0,1.0)
 		self.assertEqual(obj.dim(),3)
 		self.assertEqual(obj.box(),BoxNd([0,0,0],[1,1,1]))
 		self.assertEqual(obj.box(),BoxNd([0,0,0],[1,1,1]))
@@ -816,6 +816,23 @@ class Testing(unittest.TestCase):
 		self.assertEqual(obj.box(),BoxNd([0.0, 0.0, 0.0], [1.0, 1.0, 1.0]))
 		self.assertEqual(len(obj.points),4)
 		self.assertEqual(len(obj.hulls),1)
+
+		# quote
+		obj=Hpc.quote([1,-2,1])
+		self.assertEqual(obj.box(),BoxNd([0.0],[4.0]))
+		T,properties,obj=obj.toList()[0]
+		self.assertEqual(len(obj.points),4)
+		self.assertEqual(obj.hulls,[[0,1],[2,3]])
+
+		# join
+		obj=Hpc.join([
+			Hpc.cube(2,  0.0, 1.0), 
+			Hpc.cube(2, 10.0,11.0)])
+		T,properties,obj=obj.toList()[0]
+		
+		obj=obj.toSimplicialForm()
+		print(obj)
+
 
 
 
