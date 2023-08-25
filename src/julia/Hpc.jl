@@ -568,7 +568,7 @@ function Transform(self::Hpc, T::MatrixNd)
 	return Hpc(T, [self])
 end
 
-function Rranslate(self::Hpc, vt::Vector{Float64})
+function Translate(self::Hpc, vt::Vector{Float64})
 	return Hpc(translate(vt), [self])
 end
 
@@ -868,8 +868,6 @@ function TestHpc()
 	@test dim(T) == 3
 	@test box(obj) == BoxNd([0.0, 0.0], [1.0, 1.0])
 
-
-	
 	# power
 	obj = Power(Cube(2, 0.0, 1.0), Cube(1, 10.0, 20.0))
 	l = toList(obj)
@@ -878,19 +876,33 @@ function TestHpc()
 	@test length(obj.points) == 8
 	@test box(obj) == BoxNd([0.0, 0.0, 10.0], [1.0, 1.0, 20.0])
 
-	# TODO scale rotate trasslate
-	# not tested
-	# ukpol
-	# mapFn
-	# toBoundaryFor
+	# Scale
+	obj = Scale(Cube(2, 0.0, 1.0),[1.0, 1.0])
+	@test dim(obj) == 2
+	@test box(obj) == BoxNd([0.0, 0.0], [1.0, 1.0])
+
+	# Rotate
+	obj = Rotate(Cube(2, 0.0, 1.0), 1,2, 0.0)
+	@test box(obj) == BoxNd([0.0, 0.0], [1.0, 1.0])
+
+	# Translate
+	obj = Translate(Cube(2, 0.0, 1.0),[0.0, 0.0])
+	@test box(obj) == BoxNd([0.0, 0.0], [1.0, 1.0])
+
+
+	# TODO 
+	# UkPol
+	# MapFn
+	# ToBoundaryForm
 	 
 end
 
-
-TestComputeNormal()
-TestGoodTet()
-TestBox()
-TestMat()
-TestMkPol()
-TestHpc()
-println("all test ok")
+if abspath(PROGRAM_FILE) == @__FILE__
+	TestComputeNormal()
+	TestGoodTet()
+	TestBox()
+	TestMat()
+	TestMkPol()
+	TestHpc()
+	println("all test ok")
+end
