@@ -553,13 +553,22 @@ class Hpc:
 				for py in obj2.points:
 					for px in obj1.points:
 						points.append(tuple(px) + tuple(py))
-						
+
 				# combination of hulls
 				hulls=[]
 				nx,ny=len(obj1.points),len(obj2.points)
 				for hy in obj2.hulls:   
 					for hx in obj1.hulls:
-						hulls.append([c[1]*nx + c[0] for c in list(itertools.product(*[hx,hy]))])
+
+						hull=[]
+						for A in hx:
+							for B in hy:
+								hull.append(B*nx + A)
+
+						#l=list(itertools.product(*[hx,hy]))
+						#hull=[c[1]*nx + c[0] for c in l]
+
+						hulls.append(hull)
 	
 				# combination of matrices
 				T=T1.adjoin(T2)
