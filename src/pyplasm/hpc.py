@@ -821,13 +821,31 @@ class Testing(unittest.TestCase):
 
 		# join
 		obj=Hpc.join([
-			Hpc.cube(2,  0.0, 1.0), 
-			Hpc.cube(2, 10.0,11.0)])
+			Hpc.cube(2, 0.0, 1.0), 
+			Hpc.cube(2, 0.0,1.0)])
 		T,properties,obj=obj.toList()[0]
-		
 		obj=obj.toSimplicialForm()
-		print(obj)
+		self.assertEqual(len(obj.points),4)
+		self.assertEqual(len(obj.hulls),2)
 
+		# transform
+		obj=Hpc.cube(2,0.0,1.0).transform(MatrixNd(3))
+		T,properties,obj=obj.toList()[0]
+		self.assertEqual(T.dim(),3)
+		self.assertEqual(obj.box(),BoxNd([0.0,0.0],[1.0,1.0]))
+
+		# power
+		obj=Hpc.power(Hpc.cube(2, 0.0,1.0),Hpc.cube(1, 10.0, 20.0))
+		l=obj.toList()
+		self.assertEqual(len(l),1)
+		T,properties,obj=l[0]
+		self.assertEqual(len(obj.points),8)
+		self.assertEqual(obj.box(),BoxNd([0,0,10],[1,1,20]))
+
+		# not tested
+		# ukpol
+		# mapFn
+		# toBoundaryFor
 
 
 
