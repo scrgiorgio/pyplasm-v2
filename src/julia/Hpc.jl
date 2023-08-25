@@ -470,59 +470,6 @@ mutable struct Hpc
 	 end
 end
 	 
-function MkPol(points::Vector{Vector{Float64}}, hulls::Vector{Vector{Int}}=Vector{Vector{Int}}())
-	obj=BuildMkPol(points, hulls)
-	return Hpc(MatrixNd(), [obj])
-end
-
-function Struct(pols::Vector{Hpc})
-	return Hpc(MatrixNd(), pols)
-end
-
-function Cube(dim::Int, From::Float64=0.0, To::Float64=1.0)
-	@assert dim>=1
-	points = [[From],[To]]
-	for I in 2:dim
-		a=[ [p;From] for p in points]
-		b=[ [p;To  ] for p in points]
-		points =  [a;b]
-	end
-	return MkPol(points)
-end
-
-function Simplex(dim::Int)
-	@assert dim>=1
-	points = [ [0.0 for _ in 1:dim] ]
-	for I in 1:dim
-		point=[0.0 for _ in 1:dim]
-		point[I]=1.0
-		push!(points,point)
-	end
-	return MkPol(points)
-end
-
-function Join(pols::Vector{Hpc})
-	points = []
-	for (T, properties, obj) in toList(Hpc(MatrixNd(), pols))
-		points = [transformPoint(T,p) for p in obj.points]
-	end
-	return MkPol(points)
-end
-
-function Quote(sequence::Vector{Float64})
-	pos = 0.0
-	points = [[pos]]
-	hulls = Vector{Vector{Int}}()
-	for value in sequence
-		next = pos + abs(value)
-		push!(points, [next])
-		if value >= 0
-				push!(hulls, [length(points)-1, length(points)])
-		end
-		pos = next
-	end
-	return MkPol(points, hulls)
-end
 
 function Base.show(io::IO, self::Hpc)
 	print(io, "Hpc(", self.T, ", ", self.childs, ", ", self.properties, ")")
@@ -564,6 +511,68 @@ function box(self::Hpc)
 	return box
 end
 
+
+# //////////////////////////////////////////////////////////////////////////////////////////
+function MkPol(points::Vector{Vector{Float64}}, hulls::Vector{Vector{Int}}=Vector{Vector{Int}}())
+	obj=BuildMkPol(points, hulls)
+	return Hpc(MatrixNd(), [obj])
+end
+
+function Struct(pols::Vector{Hpc})
+	return Hpc(MatrixNd(), pols)
+end
+
+# //////////////////////////////////////////////////////////////////////////////////////////
+function Cube(dim::Int, From::Float64=0.0, To::Float64=1.0)
+	@assert dim>=1
+	points = [[From],[To]]
+	for I in 2:dim
+		a=[ [p;From] for p in points]
+		b=[ [p;To  ] for p in points]
+		points =  [a;b]
+	end
+	return MkPol(points)
+end
+
+# //////////////////////////////////////////////////////////////////////////////////////////
+function Simplex(dim::Int)
+	@assert dim>=1
+	points = [ [0.0 for _ in 1:dim] ]
+	for I in 1:dim
+		point=[0.0 for _ in 1:dim]
+		point[I]=1.0
+		push!(points,point)
+	end
+	return MkPol(points)
+end
+
+# //////////////////////////////////////////////////////////////////////////////////////////
+function Join(pols::Vector{Hpc})
+	points = []
+	for (T, properties, obj) in toList(Hpc(MatrixNd(), pols))
+		points = [transformPoint(T,p) for p in obj.points]
+	end
+	return MkPol(points)
+end
+
+# //////////////////////////////////////////////////////////////////////////////////////////
+function Quote(sequence::Vector{Float64})
+	pos = 0.0
+	points = [[pos]]
+	hulls = Vector{Vector{Int}}()
+	for value in sequence
+		next = pos + abs(value)
+		push!(points, [next])
+		if value >= 0
+				push!(hulls, [length(points)-1, length(points)])
+		end
+		pos = next
+	end
+	return MkPol(points, hulls)
+end
+
+
+# //////////////////////////////////////////////////////////////////////////////////////////
 function Transform(self::Hpc, T::MatrixNd)
 	return Hpc(T, [self])
 end
@@ -580,6 +589,7 @@ function Rotate(self::Hpc, i::Int, j::Int, angle::Float64)
 	return Hpc(rotate(i, j, angle), [self])
 end
 
+# //////////////////////////////////////////////////////////////////////////////////////////
 function Power(a::Hpc, b::Hpc)
 	childs = Vector{Hpc}()
 	for (T2, properties2, obj2) in toList(b)
@@ -610,6 +620,7 @@ function Power(a::Hpc, b::Hpc)
 	return Hpc(MatrixNd(), childs)
 end
 
+# //////////////////////////////////////////////////////////////////////////////////////////
 function UkPol(self::Hpc)
 	points = Vector{Vector{Float64}}()
 	hulls  = Vector{Vector{Int}}()
@@ -629,6 +640,7 @@ function UkPol(self::Hpc)
 	return [points, hulls]
 end
 
+# //////////////////////////////////////////////////////////////////////////////////////////
 function View(self::Hpc, title::String="")
 	batches = []
 	for (T, properties, obj) in toList(self)
@@ -648,6 +660,7 @@ function View(self::Hpc, title::String="")
 	GLView(batches, title=title)
 end
 
+# //////////////////////////////////////////////////////////////////////////////////////////
 function MapFn(self::Hpc, fn)
 	childs = Vector{Hpc}()
 	for (T, properties, obj) in toList(self)
@@ -660,6 +673,7 @@ function MapFn(self::Hpc, fn)
 	return ret
 end
 
+# //////////////////////////////////////////////////////////////////////////////////////////
 function ToBoundaryForm(self::Hpc)
 	POINTDB = Dict()
 	faces = []
@@ -716,7 +730,7 @@ function ToBoundaryForm(self::Hpc)
 	return ret
 end
 
-
+# //////////////////////////////////////////////////////////////////////////////////////////
 function TestComputeNormal()
 	 @test ComputeTriangleNormal([0, 0, 0], [1, 0, 0], [0, 1, 0]) == [0.0, 0.0, 1.0]
 	 @test ComputeTriangleNormal([0, 0, 0], [0, 1, 0], [0, 0, 1]) == [1.0, 0.0, 0.0]
