@@ -249,11 +249,32 @@ class MkPol:
 		if hulls is None:
 			hulls=[range(len(points))]	
 
+		pdim=len(points[0])
 		self.db={}
 		self.points=[]
 		self.hulls=[]
 		for hull in hulls:
-			self.addHull([points[idx] for idx in hull])
+
+			if not hull: 
+				continue
+
+			# special case for 1D
+			if pdim==1:
+				assert len(hull)>=2
+				box = BoxNd(1).addPoints([points[I] for I in hull])
+				self.addHull([box.p1, box.p2])
+
+			# all other cases
+			else:
+				hull_points=[points[idx] for idx in hull]
+				try:
+					h=scipy.spatial.ConvexHull([points[idx] for idx in hull])
+					hull_points=[tuple(h.points[idx]) for idx in h.vertices]
+				except:
+					pass
+					
+				self.addHull(hull_points)
+
 
 	# addPoint
 	def addPoint(self, p):
@@ -307,7 +328,7 @@ class MkPol:
 
 			# hopefully it's full dimensional
 			# this case is needed when I map the boundary (creating flat triangles in 3d)
-			if len(hull)<=pdim:
+			if len(hull)<=(pdim+1):
 				ret.addHull([self.points[idx] for idx in hull])
 
 			# special case for 1D
