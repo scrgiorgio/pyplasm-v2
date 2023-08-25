@@ -8,16 +8,19 @@ import Base.transpose
 using PyCall
 spatial = pyimport_conda("scipy.spatial", "scipy") # the second argument is the conda package name
 
+# for GLBatch
+include("Viewer.jl") 
+
 
 # /////////////////////////////////////////////////////////////
-function ComputeTriangleNormal(p0, p1, p2)
+function ComputeTriangleNormal(p0::Vector{Float64}, p1::Vector{Float64}, p2::Vector{Float64})
 	 p0 = vcat(p0, zeros(3 - length(p0)))
 	 p1 = vcat(p1, zeros(3 - length(p1)))
 	 p2 = vcat(p2, zeros(3 - length(p2)))
 	 a = [p1[i] - p0[i] for i in 1:3]
 	 b = [p2[i] - p0[i] for i in 1:3]
-	 ret = cross(a, b)
-	 N = norm(ret)
+	 ret = LinearAlgebra.cross(a, b)
+	 N = LinearAlgebra.norm(ret)
 	 if N == 0.0
 		  N = 1.0
 	 end
@@ -25,7 +28,7 @@ function ComputeTriangleNormal(p0, p1, p2)
 end
 
 # /////////////////////////////////////////////////////////////
-function GoodTetOrientation(v0, v1, v2, v3)
+function GoodTetOrientation(v0::Vector{Float64}, v1::Vector{Float64}, v2::Vector{Float64}, v3::Vector{Float64})
 	 v0 = vcat(v0, zeros(3 - length(v0)))
 	 v1 = vcat(v1, zeros(3 - length(v1)))
 	 v2 = vcat(v2, zeros(3 - length(v2)))
@@ -33,7 +36,7 @@ function GoodTetOrientation(v0, v1, v2, v3)
 	 a = [v3[i] - v1[i] for i in 1:3]
 	 b = [v2[i] - v1[i] for i in 1:3]
 	 c = [v0[i] - v1[i] for i in 1:3]
-	 n = cross(a, b)
+	 n = LinearAlgebra.cross(a, b)
 	 return dot(n, c) > 0
 end
 
@@ -387,10 +390,10 @@ function fixOrientation!(self::BuildMkPol)
 	 return self
 end
 
+
 function getBatches(self::BuildMkPol)
-	 dim = dim(self)
+
 	 simplicial_form = toSimplicialForm(self)
-	 
 	 points = GLBatch(GLBatch.POINTS)
 	 lines = GLBatch(GLBatch.LINES)
 	 triangles = GLBatch(GLBatch.TRIANGLES)
@@ -645,14 +648,16 @@ function View(self::Hpc, title::String="")
 	batches = []
 	for (T, properties, obj) in toList(self)
 		T = embed(T, 4)
-		T3D = [
-				T[1, 1], T[1, 2], T[1, 3], T[1, 0],
-				T[2, 1], T[2, 2], T[2, 3], T[2, 0],
-				T[3, 1], T[3, 2], T[3, 3], T[3, 0],
-				T[0, 1], T[0, 2], T[0, 3], T[0, 0]
-		]
-		for batch in obj.getBatches()
-				prependTransformation(batch, T3D)
+		for batch in getBatches(obj)
+
+				# homo should be last
+				prependTransformation(batch, [
+					T[2,2], T[2,3], T[2,4],   T[2,1],
+					T[3,2], T[3,3], T[3,4],   T[3,1],
+					T[4,2], T[4,3], T[4,4],   T[4,1],
+
+					T[1,2], T[1,3], T[1,4],   T[1,1]
+				])	
 				writeProperties(batch, properties)
 				push!(batches, batch)
 		end
@@ -732,19 +737,19 @@ end
 
 # //////////////////////////////////////////////////////////////////////////////////////////
 function TestComputeNormal()
-	 @test ComputeTriangleNormal([0, 0, 0], [1, 0, 0], [0, 1, 0]) == [0.0, 0.0, 1.0]
-	 @test ComputeTriangleNormal([0, 0, 0], [0, 1, 0], [0, 0, 1]) == [1.0, 0.0, 0.0]
-	 @test ComputeTriangleNormal([0, 0, 0], [1, 0, 1], [1, 0, 0]) == [0.0, 1.0, 0.0]
+	 @test ComputeTriangleNormal([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]) == [0.0, 0.0, 1.0]
+	 @test ComputeTriangleNormal([0.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]) == [1.0, 0.0, 0.0]
+	 @test ComputeTriangleNormal([0.0, 0.0, 0.0], [1.0, 0.0, 1.0], [1.0, 0.0, 0.0]) == [0.0, 1.0, 0.0]
 end
 
 function TestGoodTet()
-	 @test GoodTetOrientation([0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]) == true
-	 @test GoodTetOrientation([0, 0, 0], [0, 1, 0], [1, 0, 0], [0, 0, 1]) == false
+	 @test GoodTetOrientation([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]) == true
+	 @test GoodTetOrientation([0.0, 0.0, 0.0], [0.0, 1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]) == false
 end
 
 function TestBox()
-	 x1, y1, z1 = 1, 2, 3
-	 x2, y2, z2 = 4, 5, 6
+	 x1, y1, z1 = 1.0, 2.0, 3.0
+	 x2, y2, z2 = 4.0, 5.0, 6.0
 	 b = BoxNd([1.0, x1, y1, z1], [1.0, x2, y2, z2])
 	 @test dim(b) == 4
 	 @test b.p1 == [1.0, x1, y1, z1]
@@ -762,7 +767,7 @@ end
 
 function TestMat()
 	T = MatrixNd(4)
-	v = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+	v = [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]]
 	T[1, 1] += 0.0
 	@test T == MatrixNd(v)
 	@test dim(T) == 4
@@ -777,10 +782,10 @@ function TestMat()
 	# transform point does not want homo coordinate
 	p = [2.0, 3.0, 4.0]
 	@test transformPoint(T, p) == p
-	@test translate([10, 20, 30]) == MatrixNd([[1, 0, 0, 0], [10, 1, 0, 0], [20, 0, 1, 0], [30, 0, 0, 1]])
-	@test scale([10, 20, 30]) == MatrixNd([[1, 0, 0, 0], [0, 10, 0, 0], [0, 0, 20, 0], [0, 0, 0, 30]])
+	@test translate([10.0, 20.0, 30.0]) == MatrixNd([[1.0, 0.0, 0.0, 0.0], [10.0,  1.0, 0.0, 0.0], [20.0, 0.0,  1.0, 0.0], [30.0, 0.0, 0.0,  1.0]])
+	@test scale([10.0, 20.0, 30.0])     == MatrixNd([[1.0, 0.0, 0.0, 0.0], [ 0.0, 10.0, 0.0, 0.0], [ 0.0, 0.0, 20.0, 0.0], [ 0.0, 0.0, 0.0, 30.0]])
 	angle = π / 2
-	@test rotate(1, 2, angle) == MatrixNd([[1, 0, 0], [0.0, cos(angle), -sin(angle)], [0.0, sin(angle), cos(angle)]])
+	@test rotate(1, 2, angle) == MatrixNd([[1.0, 0.0, 0.0], [0.0, cos(angle), -sin(angle)], [0.0, sin(angle), cos(angle)]])
 end
 
 function TestMkPol()
@@ -924,7 +929,12 @@ function TestHpc()
 	@test length(points)==4
 	@test length(hulls)==1 && length(hulls[1])==4
 
+	# View
+	#TODO
+	#View(Cube(2, 0.0, 1.0))
+
 	# ToBoundaryForm
+
 	 
 end
 
