@@ -325,7 +325,7 @@ class BuildMkPol:
 
 			else:
 				d=scipy.spatial.Delaunay([self.points[idx] for idx in hull])
-				for simplex in d.vertices: 
+				for simplex in d.simplices: 
 					ret.addHull([d.points[idx] for idx in simplex])
 
 		ret.__fixOrientation()
