@@ -611,11 +611,20 @@ function Power(a::Hpc, b::Hpc)
 end
 
 function UkPol(self::Hpc)
-	points, hulls = [], []
+	points = Vector{Vector{Float64}}()
+	hulls  = Vector{Vector{Int}}()
 	for (T, properties, obj) in toList(self)
-		offset = length(points)
-		push!(points, [transformPoint(T,p) for p in obj.points]...)
-		push!(hulls, [[offset + idx for idx in hull] for hull in obj.hulls]...)
+		O = length(points)
+
+		for p in obj.points
+			push!(points,transformPoint(T,p))
+		end
+
+		for hull in obj.hulls
+			new_hull=[O + idx for idx in hull]
+			push!(hulls,new_hull)
+		end
+
 	end
 	return [points, hulls]
 end
@@ -893,16 +902,19 @@ function TestHpc()
 	function fn(p)
 		return [p[I]+0.0 for I in 1:length(p)]
 	end
-
-	pbj=MapFn(Cube(2, 0.0, 1.0),fn)
+	obj=MapFn(Cube(2, 0.0, 1.0),fn)
 	@test box(obj) == BoxNd([0.0, 0.0], [1.0, 1.0])
 
-	# TODO 
 	# UkPol
+	points,hulls=UkPol(Cube(2, 0.0, 1.0))
+	@test length(points)==4
+	@test length(hulls)==1 && length(hulls[1])==4
+
 	# ToBoundaryForm
 	 
 end
 
+# //////////////////////////////////////////////////////////////////////////////////////////
 if abspath(PROGRAM_FILE) == @__FILE__
 	TestComputeNormal()
 	TestGoodTet()
