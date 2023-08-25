@@ -228,23 +228,9 @@ class MatrixNd:
 		T[j,i]=+math.sin(angle) ; T[j,j]=+math.cos(angle)
 		return T 
 	
-# ///////////////////////////////////////////////////////////////
-class PointDb:
 
-	# constructor
-	def __init__(self):
-		self.m={}
-
-	# getIndex
-	def getIndex(self, p):
-		p=tuple(p)
-		if not p in self.m:
-			self.m[p]=len(self.m)
-		return self.m[p]
 	
-	# toList
-	def toList(self):
-		return [p for p in self.m]
+
 
 # ///////////////////////////////////////////////////////////////
 class MkPol:
@@ -252,17 +238,38 @@ class MkPol:
 	# constructor
 	def __init__(self,points=[],hulls=None):
 
+		self.db={}
+		self.points=[]
+		self.hulls=[]
+
+		# default constructor
+		if not points:
+			return
+		
 		if hulls is None:
-			hulls=[range(len(points))]
+			hulls=[range(len(points))]	
 
-
-
-		db=PointDb()
-		simplified_hulls=[]
+		self.db={}
+		self.points=[]
+		self.hulls=[]
 		for hull in hulls:
-			simplified_hulls.append([db.getIndex(points[idx]) for idx in hull])
-		self.points=db.toList()
-		self.hulls=simplified_hulls
+			self.addHull([points[idx] for idx in hull])
+
+	# addPoint
+	def addPoint(self, p):
+		p=tuple(p)
+		idx=self.db.get(p,None)
+		if idx is not None:
+			return idx
+		else:
+			idx=len(self.db)
+			self.db[p]=idx
+			self.points.append(p)
+			return idx
+
+	# addHull
+	def addHull(self,points):
+		self.hulls.append([self.addPoint(p) for p in points])
 
 	# dim
 	def dim(self):
@@ -294,34 +301,29 @@ class MkPol:
 		already_simplicial=all([len(hull)<=(pdim+1) for hull in self.hulls])
 		if already_simplicial:
 			return self
-
-		db   = PointDb()
-		simplices = []
-	
+		
+		ret=MkPol()
 		for hull in self.hulls:
 
 			# hopefully it's full dimensional
 			# this case is needed when I map the boundary (creating flat triangles in 3d)
 			if len(hull)<=pdim:
-				simplices.append([db.getIndex(self.points[idx]) for idx in hull])
-				continue
+				ret.addHull([self.points[idx] for idx in hull])
 
 			# special case for 1D
-			if pdim==1:
+			elif pdim==1:
 				box = BoxNd(1).addPoints([self.points[I] for I in hull])
-				simplices.append([db.getIndex(box.p1), db.getIndex(box.p2)])
-				continue
+				ret.addHull([box.p1, box.p2])
 
 			# all other cases
-			points=[self.points[idx] for idx in hull]
-			h=scipy.spatial.ConvexHull(points)
-			points=[tuple(h.points[idx]) for idx in h.vertices]
-			d=scipy.spatial.Delaunay(points)
+			else:
+				points=[self.points[idx] for idx in hull]
+				h=scipy.spatial.ConvexHull(points)
+				points=[tuple(h.points[idx]) for idx in h.vertices]
+				d=scipy.spatial.Delaunay(points)
+				for simplex in d.vertices: # d.vertices contains simplices
+					ret.addHull([d.points[idx] for idx in simplex])
 
-			for simplex in d.vertices: # d.vertices contains simplices
-				simplices.append([db.getIndex(d.points[idx]) for idx in simplex])
-
-		ret=MkPol(db.toList(),simplices) 
 		ret.__fixOrientation()
 		return ret
 	
