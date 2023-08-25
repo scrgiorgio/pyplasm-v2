@@ -230,7 +230,7 @@ class MatrixNd:
 
 
 # ///////////////////////////////////////////////////////////////
-class MkPol:
+class BuildMkPol:
 
 	# constructor
 	def __init__(self,points=[],hulls=None):
@@ -244,7 +244,7 @@ class MkPol:
 			return
 		
 		if hulls is None:
-			hulls=[range(len(points))]	
+			hulls=[list(range(len(points)))]	
 
 		pdim=len(points[0])
 		self.db={}
@@ -302,7 +302,7 @@ class MkPol:
 		
 	# __repr__
 	def __repr__(self):
-		return f"MkPol(points={self.points}, hulls={self.hulls})"
+		return f"BuildMkPol(points={self.points}, hulls={self.hulls})"
 		
 	# toSimplicialForm
 	def toSimplicialForm(self):
@@ -316,7 +316,7 @@ class MkPol:
 		if pdim<=1: 
 			return self
 		
-		ret=MkPol()
+		ret=BuildMkPol()
 		for hull in self.hulls:
 
 			# already in simplicial form
@@ -440,7 +440,7 @@ class Hpc:
 			
 	@staticmethod
 	def mkpol(points,hulls=None):
-		return Hpc(MatrixNd(),[MkPol(points,hulls)])
+		return Hpc(MatrixNd(),[BuildMkPol(points,hulls)])
 
 	@staticmethod
 	def Struct(pols):
@@ -564,7 +564,7 @@ class Hpc:
 				# combination of matrices
 				T=T1.adjoin(T2)
 				
-				childs.append(Hpc(T,[MkPol(points,hulls)]))
+				childs.append(Hpc(T,[BuildMkPol(points,hulls)]))
 				
 		return Hpc(MatrixNd(),childs)    
 		
@@ -607,7 +607,7 @@ class Hpc:
 			obj=obj.toSimplicialForm()
 			points=[fn(T.transformPoint(p)) for p in obj.points]
 			hulls =obj.hulls
-			childs.append(Hpc(MatrixNd(),[MkPol(points,hulls)],properties))  
+			childs.append(Hpc(MatrixNd(),[BuildMkPol(points,hulls)],properties))  
 		ret=Hpc(MatrixNd(),childs)  
 		return ret
 		
@@ -719,7 +719,7 @@ class Testing(unittest.TestCase):
 		# 1D
 		points=[[0],[1],[2],   [8],[9],[10]]
 		hulls=[[0,1,2],[3,4,5]]
-		obj=MkPol(points,hulls)
+		obj=BuildMkPol(points,hulls)
 		self.assertEqual(obj.dim(),1)
 		self.assertEqual(obj.box(),BoxNd([0],[10]))
 		obj=obj.toSimplicialForm()
@@ -730,7 +730,7 @@ class Testing(unittest.TestCase):
 		# 2D
 		points=[[0,0],[0.2,0.2],[1,0],[0.3,0.3],[1,1],[0.4,0.4],[0,1],[0.5,0.5],[0.2,0.8]]
 		hulls=[list(range(len(points)))]
-		obj=MkPol(points,hulls)
+		obj=BuildMkPol(points,hulls)
 		self.assertEqual(obj.dim(),2)
 		self.assertEqual(obj.box(),BoxNd([0,0],[1,1]))
 		obj=obj.toSimplicialForm()
@@ -755,7 +755,7 @@ class Testing(unittest.TestCase):
 			[0.3, 0.3, 0.3]]
 		hulls=[list(range(len(points)))]
 
-		obj=MkPol(points,hulls)
+		obj=BuildMkPol(points,hulls)
 		self.assertEqual(obj.dim(),3)
 		self.assertEqual(obj.box(),BoxNd([0.0,0.0,0.0], [1.0, 1.0, 1.0]))
 		obj=obj.toSimplicialForm()
@@ -839,6 +839,7 @@ class Testing(unittest.TestCase):
 		l=obj.toList()
 		self.assertEqual(len(l),1)
 		T,properties,obj=l[0]
+		print(T,obj)
 		self.assertEqual(len(obj.points),8)
 		self.assertEqual(obj.box(),BoxNd([0,0,10],[1,1,20]))
 
