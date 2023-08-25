@@ -227,9 +227,6 @@ class MatrixNd:
 		T[i,i]=+math.cos(angle) ; T[i,j]=-math.sin(angle)
 		T[j,i]=+math.sin(angle) ; T[j,j]=+math.cos(angle)
 		return T 
-	
-
-	
 
 
 # ///////////////////////////////////////////////////////////////
@@ -315,34 +312,20 @@ class MkPol:
 		
 		pdim=self.dim()
 		
-		# in zero dimension you can have only a point in zero!
-		if pdim==0: 
-			return self
-		
-		already_simplicial=all([len(hull)<=(pdim+1) for hull in self.hulls])
-		if already_simplicial:
+		# in 1d the ConvexHull is enough
+		if pdim<=1: 
 			return self
 		
 		ret=MkPol()
 		for hull in self.hulls:
 
-			# hopefully it's full dimensional
-			# this case is needed when I map the boundary (creating flat triangles in 3d)
+			# already in simplicial form
 			if len(hull)<=(pdim+1):
 				ret.addHull([self.points[idx] for idx in hull])
 
-			# special case for 1D
-			elif pdim==1:
-				box = BoxNd(1).addPoints([self.points[I] for I in hull])
-				ret.addHull([box.p1, box.p2])
-
-			# all other cases
 			else:
-				points=[self.points[idx] for idx in hull]
-				h=scipy.spatial.ConvexHull(points)
-				points=[tuple(h.points[idx]) for idx in h.vertices]
-				d=scipy.spatial.Delaunay(points)
-				for simplex in d.vertices: # d.vertices contains simplices
+				d=scipy.spatial.Delaunay([self.points[idx] for idx in hull])
+				for simplex in d.vertices: 
 					ret.addHull([d.points[idx] for idx in simplex])
 
 		ret.__fixOrientation()
