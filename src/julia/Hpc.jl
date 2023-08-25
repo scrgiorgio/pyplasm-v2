@@ -640,7 +640,7 @@ function View(self::Hpc, title::String="")
 end
 
 function MapFn(self::Hpc, fn)
-	childs = []
+	childs = Vector{Hpc}()
 	for (T, properties, obj) in toList(self)
 		obj = toSimplicialForm(obj)
 		points = [fn(transformPoint(T,p)) for p in obj.points]
@@ -889,10 +889,16 @@ function TestHpc()
 	obj = Translate(Cube(2, 0.0, 1.0),[0.0, 0.0])
 	@test box(obj) == BoxNd([0.0, 0.0], [1.0, 1.0])
 
+	# MapFn
+	function fn(p)
+		return [p[I]+0.0 for I in 1:length(p)]
+	end
+
+	pbj=MapFn(Cube(2, 0.0, 1.0),fn)
+	@test box(obj) == BoxNd([0.0, 0.0], [1.0, 1.0])
 
 	# TODO 
 	# UkPol
-	# MapFn
 	# ToBoundaryForm
 	 
 end
