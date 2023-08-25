@@ -50,8 +50,8 @@ class BoxNd:
 
 		# dimension
 		if len(arg)==1 and isinstance(arg[0],int):
-			self.p1=[sys.float_info.max] * arg[0]
-			self.p2=[sys.float_info.min] * arg[0]
+			self.p1=[+sys.float_info.max] * arg[0]
+			self.p2=[-sys.float_info.max] * arg[0]
 			
 		# two lists
 		elif len(arg)==2 and isinstance(arg[0],(list, tuple)) and isinstance(arg[1],(list, tuple)):

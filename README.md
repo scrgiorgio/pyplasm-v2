@@ -40,5 +40,6 @@ Pkg.add("StaticArrays")
 exit()
 
 julia src/julia/Viewer.jl
+julia src/julia/Hpc.jl
 
 ``````
