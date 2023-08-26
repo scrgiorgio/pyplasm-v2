@@ -1,3 +1,5 @@
+
+
 using LinearAlgebra
 using Test
 import Base.:(==)
@@ -5,11 +7,14 @@ import Base.:*
 import Base.size
 import Base.transpose
 
+
+include("Viewer.jl")
+using .ViewerModule
+
+
+
 using PyCall
 spatial = pyimport_conda("scipy.spatial", "scipy") # the second argument is the conda package name
-
-# for GLBatch
-include("Viewer.jl") 
 
 
 # /////////////////////////////////////////////////////////////
@@ -394,9 +399,9 @@ end
 function getBatches(self::BuildMkPol)
 
 	 simplicial_form = toSimplicialForm(self)
-	 points = GLBatch(GLBatch.POINTS)
-	 lines = GLBatch(GLBatch.LINES)
-	 triangles = GLBatch(GLBatch.TRIANGLES)
+	 points = GLBatch(POINTS)
+	 lines   = GLBatch(LINES)
+	 triangles = GLBatch(TRIANGLES)
 	 
 	 for hull in simplicial_form.hulls
 		  hull_dim = length(hull)
@@ -406,45 +411,39 @@ function getBatches(self::BuildMkPol)
 		  elseif hull_dim == 2
 				p0 = self.points[hull[1]]
 				p1 = self.points[hull[2]]
-				push!(lines.vertices, p0)
-				push!(lines.vertices, p1)
+				push!(lines.vertices.vector, p0...)
+				push!(lines.vertices.vector, p1...)
 		  elseif hull_dim == 3
 				p0 = self.points[hull[1]]
 				p1 = self.points[hull[2]]
 				p2 = self.points[hull[3]]
 				n = ComputeTriangleNormal(p0, p1, p2)
-				push!(triangles.vertices, p0)
-				push!(triangles.normals, n)
-				push!(triangles.vertices, p1)
-				push!(triangles.normals, n)
-				push!(triangles.vertices, p2)
-				push!(triangles.normals, n)
+				push!(triangles.vertices.vector, p0...);push!(triangles.normals.vector, n...)
+				push!(triangles.vertices.vector, p1...);push!(triangles.normals.vector, n...)
+				push!(triangles.vertices.vector, p2...);push!(triangles.normals.vector, n...)
 		  elseif hull_dim == 4
 				for T in [[1, 2, 4], [1, 4, 3], [1, 3, 2], [2, 3, 4]]
 					 p0 = self.points[hull[T[1]]]
 					 p1 = self.points[hull[T[2]]]
 					 p2 = self.points[hull[T[3]]]
 					 n = ComputeTriangleNormal(p0, p1, p2)
-					 push!(triangles.vertices, p0)
-					 push!(triangles.normals, n)
-					 push!(triangles.vertices, p1)
-					 push!(triangles.normals, n)
-					 push!(triangles.vertices, p2)
-					 push!(triangles.normals, n)
+					 push!(triangles.vertices.vector, p0...);push!(triangles.normals.vector, n...)
+					 push!(triangles.vertices.vector, p1...);push!(triangles.normals.vector, n...)
+					 push!(triangles.vertices.vector, p2...);push!(triangles.normals.vector, n...)
 				end
 		  else
 				throw("Cannot handle geometry with dim > 3")
 		  end
 	 end
 	 
-	 ret = GLBatch[]
-	 if !isempty(points.vertices)
+	 ret = []
+	 if !isempty(points.vertices.vector)
 		  push!(ret, points)
 	 end
-	 if !isempty(lines.vertices)
+	 if !isempty(lines.vertices.vector)
 		  push!(ret, lines)
 	 end
-	 if !isempty(triangles.vertices)
+	 if !isempty(triangles.vertices.vector)
 		  push!(ret, triangles)
 	 end
 	 return ret
@@ -645,24 +644,21 @@ end
 
 # //////////////////////////////////////////////////////////////////////////////////////////
 function View(self::Hpc, title::String="")
-	batches = []
+	batches = Vector{ViewerModule.GLBatch}()
 	for (T, properties, obj) in toList(self)
 		T = embed(T, 4)
 		for batch in getBatches(obj)
-
-				# homo should be last
-				prependTransformation(batch, [
+				prependTransformation(batch, Matrix4d([ # homo should be last
 					T[2,2], T[2,3], T[2,4],   T[2,1],
 					T[3,2], T[3,3], T[3,4],   T[3,1],
 					T[4,2], T[4,3], T[4,4],   T[4,1],
-
 					T[1,2], T[1,3], T[1,4],   T[1,1]
-				])	
-				writeProperties(batch, properties)
+				]))	
+				# writeProperties(batch, properties) TODO: loosing properties
 				push!(batches, batch)
 		end
 	end
-	GLView(batches, title=title)
+	GLView(batches)
 end
 
 # //////////////////////////////////////////////////////////////////////////////////////////
@@ -929,12 +925,12 @@ function TestHpc()
 	@test length(points)==4
 	@test length(hulls)==1 && length(hulls[1])==4
 
-	# View
-	#TODO
-	#View(Cube(2, 0.0, 1.0))
+
 
 	# ToBoundaryForm
 
+	# View
+	View(Cube(3, 0.0, 1.0))
 	 
 end
 

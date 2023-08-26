@@ -1,3 +1,7 @@
+module ViewerModule
+
+export GLBatch, GLView, POINTS, LINES, TRIANGLES, prependTransformation, Matrix4d, writeProperties
+
 using LinearAlgebra
 using ModernGL
 using GLFW
@@ -18,7 +22,6 @@ function normalized(p::Point3d)
 	len=norm(p)
 	return Point3d(p[1] / len, p[2] / len, p[3] / len)
 end
-
 
 
 # //////////////////////////////////////////////////////////////////////////////
@@ -361,10 +364,6 @@ function disableAttribute(location::Int32,buffer::GLVertexBuffer)
 end
 
 
-
-
-
-
 # /////////////////////////////////////////////////////////////////////
 mutable struct GLVertexArray
 
@@ -411,11 +410,14 @@ function disableVertexArray(array::GLVertexArray)
 	glBindVertexArray(0)
 end
 
+POINTS     = GL_POINTS
+LINES      = GL_LINES
+TRIANGLES  = GL_TRIANGLES
 
 # /////////////////////////////////////////////////////////////////////
-mutable struct GLMesh
-
-	primitive::Int32
+mutable struct GLBatch
+	
+	primitive::UInt32
 	T::Matrix4d
 	vertex_array::GLVertexArray 
 	
@@ -424,14 +426,14 @@ mutable struct GLMesh
 	colors::GLVertexBuffer
 	
 	# constructor
-	function GLMesh()
-		ret=new(POINTS,Matrix4d(),GLVertexArray(),GLVertexBuffer(),GLVertexBuffer(),GLVertexBuffer())
+	function GLBatch(prim::UInt32=GL_POINTS)
+		ret=new(prim,Matrix4d(),GLVertexArray(),GLVertexBuffer(),GLVertexBuffer(),GLVertexBuffer())
 		finalizer(releaseGpuResources, ret)
 		return ret
 	end
 	
 	# constructor
-	function GLMesh(primitive)
+	function v(primitive)
 		ret=new(primitive,Matrix4d(),GLVertexArray(),GLVertexBuffer(),GLVertexBuffer(),GLVertexBuffer())
 		finalizer(releaseGpuResources, ret)
 		return ret
@@ -439,12 +441,17 @@ mutable struct GLMesh
 	
 end
 
-# /////////////////////////////////////////////////////////////////////
-function releaseGpuResources(mesh::GLMesh)
-	releaseGpuResources(mesh.vertex_array)
-	releaseGpuResources(mesh.vertices)
-	releaseGpuResources(mesh.normals)
-	releaseGpuResources(mesh.colors)
+
+function prependTransformation(self::GLBatch,T::Matrix4d)
+	self.T=T * self.T
+end
+
+
+function releaseGpuResources(batch::GLBatch)
+	releaseGpuResources(batch.vertex_array)
+	releaseGpuResources(batch.vertices)
+	releaseGpuResources(batch.normals)
+	releaseGpuResources(batch.colors)
 end
 
 
@@ -456,9 +463,9 @@ end
 	
 
 # ///////////////////////////////////////////////////////////////////////
-function getBoundingBox(mesh::GLMesh)
+function getBoundingBox(batch::GLBatch)
 	box=invalidBox()
-	vertices=mesh.vertices.vector
+	vertices=batch.vertices.vector
 	for I in 1:3:length(vertices)
 		point=Point3d(vertices[I+0],vertices[I+1],vertices[I+2])
 		addPoint(box,point)
@@ -488,7 +495,7 @@ function GLCuboid(box::Box3d)
 		append!(vertices,p3); append!(normals,n)
 	end	
 		
-	ret=GLMesh(GL_TRIANGLES)
+	ret=GLBatch(GL_TRIANGLES)
 	ret.vertices = GLVertexBuffer(vertices)
 	ret.normals  = GLVertexBuffer(normals)
 	return ret
@@ -504,7 +511,7 @@ function GLAxis(p0::Point3d,p1::Point3d)
 	G=Point4d(0,1,0,1); append!(vertices,p0); append!(vertices,Point3d(p0[1],p1[2],p0[3])); append!(colors,G); append!(colors,G)
 	B=Point4d(0,0,1,1); append!(vertices,p0); append!(vertices,Point3d(p0[1],p0[2],p1[3])); append!(colors,B); append!(colors,B)
 	
-	ret=GLMesh(GL_LINES)
+	ret=GLBatch(GL_LINES)
 	ret.vertices=GLVertexBuffer(vertices)
 	ret.colors  =GLVertexBuffer(colors)
 	return ret
@@ -820,13 +827,13 @@ mutable struct Viewer
 	mouse_beginx::Float64
 	mouse_beginy::Float64
 	down_button::Int32
-	meshes::Any
+	batches::Any
 	shaders::Dict
 	use_ortho:: Bool 
 	
 	# constructor
-	function Viewer(meshes) 
-		new(0,1024,768,1.0,1.0, 60.0, Point3d(), Point3d(), Point3d(), 0.0, 0.0, 0.0,  0,0,0, meshes,Dict(), false)
+	function Viewer(batches) 
+		new(0,1024,768,1.0,1.0, 60.0, Point3d(), Point3d(), Point3d(), 0.0, 0.0, 0.0,  0,0,0, batches,Dict(), false)
 	end
 	
 end
@@ -835,8 +842,8 @@ end
 # ///////////////////////////////////////////////////////////////////////
 function releaseGpuResources(viewer::Viewer)
 
-	for mesh in viewer.meshes
-		releaseGpuResources(mesh)
+	for batch in viewer.batches
+		releaseGpuResources(batch)
 	end
 	
 	for (key, shader) in viewer.shaders
@@ -891,15 +898,15 @@ function runViewer(viewer::Viewer)
 end
 
 # ///////////////////////////////////////////////////////////////////////
-function VIEW(meshes)
+function GLView(batches::Vector{GLBatch})
 	
 	global viewer
-	viewer=Viewer(meshes)
+	viewer=Viewer(batches)
 	
 	# calculate bounding box -> (-1,+1) ^3
 	BOX=invalidBox()
-	for mesh in viewer.meshes
-		box=getBoundingBox(mesh)
+	for batch in viewer.batches
+		box=getBoundingBox(batch)
 		addPoint(BOX,box.p1)
 		addPoint(BOX,box.p2)
 	end
@@ -907,8 +914,8 @@ function VIEW(meshes)
 	S=BOX.p2-BOX.p1
 	maxsize=max(S[1],S[2],S[3])
 	
-	for mesh in viewer.meshes
-		mesh.T=translateMatrix(Point3d(-1.0,-1.0,-1.0)) * scaleMatrix(Point3d(2.0/maxsize,2.0/maxsize,2.0/maxsize)) * translateMatrix(-BOX.p1)
+	for batch in viewer.batches
+		batch.T=translateMatrix(Point3d(-1.0,-1.0,-1.0)) * scaleMatrix(Point3d(2.0/maxsize,2.0/maxsize,2.0/maxsize)) * translateMatrix(-BOX.p1)
 	end
 	
 	viewer.pos = Point3d(3,3,3)
@@ -996,7 +1003,7 @@ function glRender(viewer::Viewer)
 	MODELVIEW  = getModelview(viewer)
 	lightpos=MODELVIEW * Point4d(viewer.pos[1],viewer.pos[2],viewer.pos[3],1.0)
 
-	for mesh in viewer.meshes
+	for batch in viewer.batches
 	
 		pdim=Dict(
 			GL_POINTS=>0, 
@@ -1005,7 +1012,7 @@ function glRender(viewer::Viewer)
 			GL_LINES=>1, 
 			GL_TRIANGLE_STRIP=>2, 
 			GL_TRIANGLE_FAN=>2, 
-			GL_TRIANGLES=>2)[mesh.primitive]
+			GL_TRIANGLES=>2)[batch.primitive]
 	
 		for polygon_mode in (pdim>=2 ? [GL_FILL,GL_LINE] : [GL_FILL])
 		
@@ -1015,15 +1022,15 @@ function glRender(viewer::Viewer)
 				glEnable(GL_POLYGON_OFFSET_LINE)
 			end			
 		
-			lighting_enabled        =polygon_mode!=GL_LINE && length(mesh.normals.vector)>0 
-			color_attribute_enabled =polygon_mode!=GL_LINE && length(mesh.colors.vector )>0
+			lighting_enabled        =polygon_mode!=GL_LINE && length(batch.normals.vector)>0 
+			color_attribute_enabled =polygon_mode!=GL_LINE && length(batch.colors.vector )>0
 			
 			shader=getShader(viewer,lighting_enabled,color_attribute_enabled)
 
 			enableProgram(shader)
 			
 			projection=PROJECTION
-			modelview=MODELVIEW * mesh.T
+			modelview=MODELVIEW * batch.T
 			normal_matrix=dropW(transpose(inv(modelview)))
 			
 			glUniformMatrix4fv(glGetUniformLocation(shader.program_id, "u_modelview_matrix" ) ,1, GL_TRUE, flatten(modelview))
@@ -1041,25 +1048,24 @@ function glRender(viewer::Viewer)
 				glUniform4f(u_color,color[1],color[2],color[3],color[4])	
 			end
 			
-			enableVertexArray(mesh.vertex_array)	
+			enableVertexArray(batch.vertex_array)	
 			
 			a_position          = glGetAttribLocation(shader.program_id, "a_position")
 			a_normal            = glGetAttribLocation(shader.program_id, "a_normal")
 			a_color             = glGetAttribLocation(shader.program_id, "a_color")			
 			
-			enableAttribute(a_position,mesh.vertices,3)
-			enableAttribute(a_normal  ,mesh.normals ,3)
-			enableAttribute(a_color   ,mesh.colors ,4)
+			enableAttribute(a_position,batch.vertices,3)
+			enableAttribute(a_normal  ,batch.normals ,3)
+			enableAttribute(a_color   ,batch.colors ,4)
 
-			glDrawArrays(mesh.primitive, 0, Int64(length(mesh.vertices.vector)/3))
+			glDrawArrays(batch.primitive, 0, Int64(length(batch.vertices.vector)/3))
 
 				
 			
-			disableAttribute(a_position,mesh.vertices)
-			disableAttribute(a_normal  ,mesh.normals)
-			disableAttribute(a_color  ,mesh.colors)
-				
-			disableVertexArray(mesh.vertex_array)
+			disableAttribute(a_position,batch.vertices)
+			disableAttribute(a_normal  ,batch.normals)
+			disableAttribute(a_color   ,batch.colors)
+			disableVertexArray(batch.vertex_array)
 			disableProgram(shader)
 			
 			glDepthMask(true)
@@ -1236,10 +1242,12 @@ end
 
 if abspath(PROGRAM_FILE) == @__FILE__
 
-	# example: see GLMesh.jl for an example about how to generate a mesh
-	VIEW([
+	GLView([
 		GLCuboid(Box3d(Point3d(0,0,0),Point3d(1,1,1)))
 		GLAxis(Point3d(-2,-2,-2),Point3d(+2,+2,+2))
 		])
 		
 end
+
+end # Viewer
+
