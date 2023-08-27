@@ -1,6 +1,6 @@
 module ViewerModule
 
-export GLBatch, GLView, POINTS, LINES, TRIANGLES, prependTransformation, Matrix4d, writeProperties
+export GLBatch, GLView, POINTS, LINES, TRIANGLES, prependTransformation, Matrix4d, writeProperties,GLAxis, Point3d
 
 using LinearAlgebra
 using ModernGL
@@ -8,6 +8,8 @@ using GLFW
 using StaticArrays
 
 import Base:*
+import Base.:-
+import Base.:+
 
 # //////////////////////////////////////////////////////////////////////////////
 const Point3d=MVector{3,Float64}
@@ -22,6 +24,19 @@ function normalized(p::Point3d)
 	len=norm(p)
 	return Point3d(p[1] / len, p[2] / len, p[3] / len)
 end
+
+function +(a::Point3d, b::Point3d)
+	return Point3d(a[1]+b[1],a[2]+b[2],a[3]+b[3])
+end
+
+function -(a::Point3d, b::Point3d)
+	return Point3d(a[1]-b[1],a[2]-b[2],a[3]-b[3])
+end
+
+function *(a::Point3d, vs::Float64)
+	return Point3d(a[1]*vs,a[2]*vs,a[3]*vs)
+end
+
 
 
 # //////////////////////////////////////////////////////////////////////////////
@@ -40,6 +55,18 @@ end
 
 function dropW(p::Point4d)
 	return Point3d(p[1] / p[4], p[2] / p[4], p[3] / p[4])
+end
+
+function +(a::Point4d, b::Point4d)
+	return Point3d(a[1]+b[1],a[2]+b[2],a[3]+b[3],a[4]+b[4])
+end
+
+function -(a::Point4d, b::Point4d)
+	return Point3d(a[1]-b[1],a[2]-b[2],a[3]-b[3],a[4]-b[4])
+end
+
+function *(a::Point4d, vs::Float64)
+	return Point3d(a[1]*vs,a[2]*vs,a[3]*vs,a[4]*vs)
 end
 
 
@@ -88,10 +115,28 @@ function getPoints(box::Box3d)
 	]
 end
 
+function center(box::Box3d)
+	return Point3d(
+		box.p2[1]-box.p1[1],
+		box.p2[2]-box.p1[2],
+		box.p2[3]-box.p1[3])
+end
+
 
 const Matrix3d=MMatrix{3, 3, Float64}
-Matrix3d(a0,a1,a2,a3,a4,a5,a6,a7,a8)= Matrix3d([a0 a1 a2 ; a3 a4 a5 ; a6 a7 a8])
-Matrix3d() =  Matrix3d(1,0,0, 0,1,0, 0,0,1)
+Matrix3d() =  Matrix3d([
+	1.0 0.0 0.0; 
+	0.0 1.0 0.0; 
+	0.0 0.0 1.0])
+Matrix3d(
+	a0::Float64,a1::Float64,a2::Float64,
+	a3::Float64,a4::Float64,a5::Float64,
+	a6::Float64,a7::Float64,a8::Float64)=Matrix3d([ a0 a1 a2 ; a3 a4 a5 ; a6 a7 a8 ])
+
+function Matrix3d(v::Vector{Float32})
+	@assert length(v)==9
+	return Matrix3d(v...)
+end
 
 function flatten(T::Matrix3d)
 	return Vector{Float32}([ 
@@ -102,10 +147,25 @@ end
 
 
 
+
 # ////////////////////////////////////////////////////////////////////
 const Matrix4d=MMatrix{4, 4, Float64}
-Matrix4d(a0,a1,a2,a3,a4,a5,a6,a7,a8,a9,a10,a11,a12,a13,a14,a15)= Matrix4d([a0 a1 a2 a3 ; a4 a5 a6 a7; a8 a9 a10 a11; a12 a13 a14 a15])
-Matrix4d() =  Matrix4d(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1)
+Matrix4d() =  Matrix4d([
+	1.0 0.0 0.0 0.0; 
+	0.0 1.0 0.0 0.0; 
+	0.0 0.0 1.0 0.0; 
+	0.0 0.0 0.0 1.0])
+Matrix4d(
+	a0::Float64,a1::Float64,a2::Float64,a3::Float64,
+	a4::Float64,a5::Float64,a6::Float64,a7::Float64,
+	a8::Float64,a9::Float64,a10::Float64,a11::Float64,
+	a12::Float64,a13::Float64,a14::Float64,a15::Float64)= Matrix4d([a0 a1 a2 a3 ; a4 a5 a6 a7; a8 a9 a10 a11; a12 a13 a14 a15])
+
+
+function Matrix4d(v::Vector{Float64})
+	@assert length(v)==16
+	return Matrix4d(v...)
+end
 
 function dropW(T::Matrix4d)
 	return Matrix3d(
@@ -463,11 +523,11 @@ end
 	
 
 # ///////////////////////////////////////////////////////////////////////
-function getBoundingBox(batch::GLBatch)
+function GetBoundingBox(batch::GLBatch)
 	box=invalidBox()
 	vertices=batch.vertices.vector
 	for I in 1:3:length(vertices)
-		point=Point3d(vertices[I+0],vertices[I+1],vertices[I+2])
+		point=Point3d(vertices[I+0],vertices[I+1],vertices[I+1])
 		addPoint(box,point)
 	end
 	return box
@@ -906,28 +966,39 @@ function GLView(batches::Vector{GLBatch})
 	# calculate bounding box -> (-1,+1) ^3
 	BOX=invalidBox()
 	for batch in viewer.batches
-		box=getBoundingBox(batch)
+		box=GetBoundingBox(batch)
 		addPoint(BOX,box.p1)
 		addPoint(BOX,box.p2)
 	end
 	
-	S=BOX.p2-BOX.p1
-	maxsize=max(S[1],S[2],S[3])
+	Size=BOX.p2-BOX.p1
+	MaxSize=max(Size[1],Size[2],Size[3])
+
+	if true
+		Center=center(BOX)
+		viewer.pos = Center + Point3d(MaxSize,MaxSize,MaxSize)*3.0
+		viewer.dir = normalized(Center-viewer.pos)
+		viewer.vup = Point3d(0,0,1)
+		viewer.zNear	   = MaxSize / 50.0
+		viewer.zFar	      = MaxSize * 10.0
+		viewer.walk_speed = MaxSize / 100.0
+
+	else
 	
-	for batch in viewer.batches
-		batch.T=translateMatrix(Point3d(-1.0,-1.0,-1.0)) * scaleMatrix(Point3d(2.0/maxsize,2.0/maxsize,2.0/maxsize)) * translateMatrix(-BOX.p1)
+		for batch in viewer.batches
+			batch.T=translateMatrix(Point3d(-1.0,-1.0,-1.0)) * scaleMatrix(Point3d(2.0/MaxSize,2.0/MaxSize,2.0/MaxSize)) * translateMatrix(-BOX.p1)
+		end
+		
+		viewer.pos = Point3d(3,3,3)
+		viewer.dir = normalized(Point3d(0,0,0)-viewer.pos)
+		viewer.vup = Point3d(0,0,1)
+		
+		MaxSize           = 2.0
+		viewer.zNear	   = MaxSize / 50.0
+		viewer.zFar	      = MaxSize * 10.0
+		viewer.walk_speed = MaxSize / 100.0
 	end
-	
-	viewer.pos = Point3d(3,3,3)
-	viewer.dir = normalized(Point3d(0,0,0)-viewer.pos)
-	viewer.vup = Point3d(0,0,1)
-	
-	maxsize           = 2.0
-	viewer.zNear	  = maxsize / 50.0
-	viewer.zFar	  = maxsize * 10.0
-	viewer.walk_speed = maxsize / 100.0		
-	redisplay(viewer)		
-	
+	redisplay(viewer)
 	runViewer(viewer)
 	
 end
@@ -1058,10 +1129,9 @@ function glRender(viewer::Viewer)
 			enableAttribute(a_normal  ,batch.normals ,3)
 			enableAttribute(a_color   ,batch.colors ,4)
 
+			@assert length(batch.vertices.vector) % 3 == 0
 			glDrawArrays(batch.primitive, 0, Int64(length(batch.vertices.vector)/3))
 
-				
-			
 			disableAttribute(a_position,batch.vertices)
 			disableAttribute(a_normal  ,batch.normals)
 			disableAttribute(a_color   ,batch.colors)
@@ -1244,7 +1314,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
 
 	GLView([
 		GLCuboid(Box3d(Point3d(0,0,0),Point3d(1,1,1)))
-		GLAxis(Point3d(-2,-2,-2),Point3d(+2,+2,+2))
+		GLAxis(Point3d(0,0,0),Point3d(+1.1,+1.1,+1.1))
 		])
 		
 end

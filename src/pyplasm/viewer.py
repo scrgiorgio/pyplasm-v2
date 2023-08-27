@@ -1270,11 +1270,11 @@ def GLView(batches,title=""):
 def Main():
 
 	box=Box3d(Point3d(0,0,0),Point3d(1,1,1))
-	box=Box3d(Point3d(-1.000000000000001, -11.999999999999998, -2.999999999999999), Point3d(32.25, 29.999999999999996, 11.390625))
+	#box=Box3d(Point3d(-1.000000000000001, -11.999999999999998, -2.999999999999999), Point3d(32.25, 29.999999999999996, 11.390625))
 
 	batches=[
 		GLCuboid(box),
-		GLAxis(Box3d(Point3d(-1,-1,-1),Point3d(2,2,2)))
+		GLAxis(Box3d(Point3d(0,0,0),Point3d(1.1,1.1,1.1)))
 	]
 	viewer=Viewer(batches)
 	viewer.run()

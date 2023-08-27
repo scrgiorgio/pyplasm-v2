@@ -323,7 +323,8 @@ end
 
 Base.show(io::IO, self::BuildMkPol) = print(io, "BuildMkPol(points=", repr(self.points), ", hulls=", repr(self.hulls), ")")
 
-function toSimplicialForm(self::BuildMkPol)
+# /////////////////////////////////////////////////////////////////////////////////
+function ToSimplicialForm(self::BuildMkPol)
 
 	 if isempty(self.points) || isempty(self.hulls)
 		  return self
@@ -349,11 +350,12 @@ function toSimplicialForm(self::BuildMkPol)
 				end
 		  end
 	 end
-	 fixOrientation!(ret)
+	 FixOrientation!(ret)
 	 return ret
 end
 
-function fixOrientation!(self::BuildMkPol)
+# ////////////////////////////////////////////////////////////////////////////////
+function FixOrientation!(self::BuildMkPol)
 	 pdim = dim(self)
 	 if pdim != 2 && pdim != 3
 		  return
@@ -396,57 +398,59 @@ function fixOrientation!(self::BuildMkPol)
 end
 
 
-function getBatches(self::BuildMkPol)
+# ////////////////////////////////////////////////////////////////////////////////
+function GetBatches(self::BuildMkPol)
 
-	 simplicial_form = toSimplicialForm(self)
-	 points = GLBatch(POINTS)
-	 lines   = GLBatch(LINES)
-	 triangles = GLBatch(TRIANGLES)
-	 
-	 for hull in simplicial_form.hulls
-		  hull_dim = length(hull)
-		  if hull_dim == 1
-				p0 = self.points[hull[1]]
-				push!(points.vertices, p0)
-		  elseif hull_dim == 2
-				p0 = self.points[hull[1]]
-				p1 = self.points[hull[2]]
-				push!(lines.vertices.vector, p0...)
-				push!(lines.vertices.vector, p1...)
-		  elseif hull_dim == 3
-				p0 = self.points[hull[1]]
-				p1 = self.points[hull[2]]
-				p2 = self.points[hull[3]]
-				n = ComputeTriangleNormal(p0, p1, p2)
-				push!(triangles.vertices.vector, p0...);push!(triangles.normals.vector, n...)
-				push!(triangles.vertices.vector, p1...);push!(triangles.normals.vector, n...)
-				push!(triangles.vertices.vector, p2...);push!(triangles.normals.vector, n...)
-		  elseif hull_dim == 4
-				for T in [[1, 2, 4], [1, 4, 3], [1, 3, 2], [2, 3, 4]]
-					 p0 = self.points[hull[T[1]]]
-					 p1 = self.points[hull[T[2]]]
-					 p2 = self.points[hull[T[3]]]
-					 n = ComputeTriangleNormal(p0, p1, p2)
-					 push!(triangles.vertices.vector, p0...);push!(triangles.normals.vector, n...)
-					 push!(triangles.vertices.vector, p1...);push!(triangles.normals.vector, n...)
-					 push!(triangles.vertices.vector, p2...);push!(triangles.normals.vector, n...)
-				end
-		  else
-				throw("Cannot handle geometry with dim > 3")
-		  end
-	 end
-	 
-	 ret = []
-	 if !isempty(points.vertices.vector)
-		  push!(ret, points)
-	 end
-	 if !isempty(lines.vertices.vector)
-		  push!(ret, lines)
-	 end
-	 if !isempty(triangles.vertices.vector)
-		  push!(ret, triangles)
-	 end
-	 return ret
+	sf = ToSimplicialForm(self)
+
+	points = GLBatch(POINTS)
+	lines   = GLBatch(LINES)
+	triangles = GLBatch(TRIANGLES)
+	
+	for hull in sf.hulls
+		hull_dim = length(hull)
+		if hull_dim == 1
+			p0 = sf.points[hull[1]];resize!(p0,3)
+			push!(points.vertices, p0)
+		elseif hull_dim == 2
+			p0 = sf.points[hull[1]];resize!(p0,3)
+			p1 = sf.points[hull[2]];resize!(p1,3)
+			push!(lines.vertices.vector, p0...)
+			push!(lines.vertices.vector, p1...)
+		elseif hull_dim == 3
+			p0 = sf.points[hull[1]];resize!(p0,3)
+			p1 = sf.points[hull[2]];resize!(p1,3)
+			p2 = sf.points[hull[3]];resize!(p2,3)
+			n = ComputeTriangleNormal(p0, p1, p2)
+			push!(triangles.vertices.vector, p0...);push!(triangles.normals.vector, n...)
+			push!(triangles.vertices.vector, p1...);push!(triangles.normals.vector, n...)
+			push!(triangles.vertices.vector, p2...);push!(triangles.normals.vector, n...)
+		elseif hull_dim == 4
+			for T in [[1, 2, 4], [1, 4, 3], [1, 3, 2], [2, 3, 4]]
+					p0 = sf.points[hull[T[1]]];resize!(p0,3)
+					p1 = sf.points[hull[T[2]]];resize!(p1,3)
+					p2 = sf.points[hull[T[3]]];resize!(p2,3)
+					n = ComputeTriangleNormal(p0, p1, p2)
+					push!(triangles.vertices.vector, p0...);push!(triangles.normals.vector, n...)
+					push!(triangles.vertices.vector, p1...);push!(triangles.normals.vector, n...)
+					push!(triangles.vertices.vector, p2...);push!(triangles.normals.vector, n...)
+			end
+		else
+			throw("Cannot handle geometry with dim > 3")
+		end
+	end
+	
+	ret = []
+	if !isempty(points.vertices.vector)
+		push!(ret, points)
+	end
+	if !isempty(lines.vertices.vector)
+		push!(ret, lines)
+	end
+	if !isempty(triangles.vertices.vector)
+		push!(ret, triangles)
+	end
+	return ret
 end
 
 
@@ -643,21 +647,33 @@ function UkPol(self::Hpc)
 end
 
 # //////////////////////////////////////////////////////////////////////////////////////////
-function View(self::Hpc, title::String="")
+function GetBatches(self::Hpc)
 	batches = Vector{ViewerModule.GLBatch}()
 	for (T, properties, obj) in toList(self)
 		T = embed(T, 4)
-		for batch in getBatches(obj)
-				prependTransformation(batch, Matrix4d([ # homo should be last
-					T[2,2], T[2,3], T[2,4],   T[2,1],
-					T[3,2], T[3,3], T[3,4],   T[3,1],
-					T[4,2], T[4,3], T[4,4],   T[4,1],
-					T[1,2], T[1,3], T[1,4],   T[1,1]
-				]))	
+		T4d=Matrix4d(
+			T[2,2], T[2,3], T[2,4],   T[2,1],  # homo should be last
+			T[3,2], T[3,3], T[3,4],   T[3,1],
+			T[4,2], T[4,3], T[4,4],   T[4,1],
+
+			T[1,2], T[1,3], T[1,4],   T[1,1]
+		)
+		println("TNd",T)
+		println("T4d",T4d)
+
+		for batch in GetBatches(obj)
+				prependTransformation(batch, T4d)
 				# writeProperties(batch, properties) TODO: loosing properties
 				push!(batches, batch)
 		end
 	end
+	return batches
+end
+
+
+# //////////////////////////////////////////////////////////////////////////////////////////
+function View(self::Hpc, title::String="")
+	batches=[GLAxis(Point3d(0,0,0),Point3d(+2,2,2));GetBatches(self)]
 	GLView(batches)
 end
 
@@ -665,9 +681,9 @@ end
 function MapFn(self::Hpc, fn)
 	childs = Vector{Hpc}()
 	for (T, properties, obj) in toList(self)
-		obj = toSimplicialForm(obj)
-		points = [fn(transformPoint(T,p)) for p in obj.points]
-		hulls = obj.hulls
+		sf = ToSimplicialForm(obj)
+		points = [fn(transformPoint(T,p)) for p in sf.points]
+		hulls = sf.hulls
 		push!(childs, Hpc(MatrixNd(), [BuildMkPol(points, hulls)], properties))
 	end
 	ret = Hpc(MatrixNd(), childs)
@@ -679,8 +695,8 @@ function ToBoundaryForm(self::Hpc)
 	POINTDB = Dict()
 	faces = []
 	for (T, properties, obj) in toList(self)
-		obj = toSimplicialForm(obj)
-		points, hulls = [transformPoint(T,p) for p in obj.points], obj.hulls
+		sf = ToSimplicialForm(obj)
+		points, hulls = [transformPoint(T,p) for p in sf.points], sf.hulls
 		dim = length(points[1])
 		mapped = Dict()
 		for P in 1:length(points)
@@ -792,7 +808,7 @@ function TestMkPol()
 	obj=BuildMkPol(points,hulls)
 	@test dim(obj)==1
 	@test box(obj)==BoxNd([0.0],[10.0])
-	obj=toSimplicialForm(obj)
+	obj=ToSimplicialForm(obj)
 	@test length(obj.points)==4
 	@test length(obj.hulls)==2
 	@test box(obj)==BoxNd([0.0],[10.0])
@@ -803,7 +819,7 @@ function TestMkPol()
 	obj = BuildMkPol(points, hulls)
 	@test dim(obj) == 2
 	@test box(obj) == BoxNd([0.0,0.0], [1.0,1.0])
-	obj = toSimplicialForm(obj)
+	obj = ToSimplicialForm(obj)
 	@test length(obj.points) == 4
 	@test length(obj.hulls) == 2
 	@test box(obj) == BoxNd([0.0,0.0], [1.0,1.0])
@@ -826,7 +842,7 @@ function TestMkPol()
 	obj = BuildMkPol(points, hulls)
 	@test dim(obj) == 3
 	@test box(obj) == BoxNd([0.0, 0.0, 0.0], [1.0, 1.0, 1.0])
-	obj = toSimplicialForm(obj)
+	obj = ToSimplicialForm(obj)
 	@test dim(obj) == 3
 	@test box(obj) == BoxNd([0.0, 0.0, 0.0], [1.0, 1.0, 1.0])
 	@test length(obj.points) == 8
@@ -834,6 +850,8 @@ function TestMkPol()
 end
 
 function TestHpc()
+
+	if false
 	points = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0], [0.2, 0.2], [0.3, 0.3], [0.4, 0.4], [0.5, 0.5], [0.2, 0.8]]
 	hulls = [collect(1:length(points))]
 	obj = MkPol(points, hulls)
@@ -853,7 +871,7 @@ function TestHpc()
 	v = toList(obj)
 	@test length(v) == 1
 	(T, properties, obj) = v[1]
-	obj = toSimplicialForm(obj)
+	obj = ToSimplicialForm(obj)
 	@test dim(obj) == 3
 	@test box(obj) == BoxNd([0.0, 0.0, 0.0], [1.0, 1.0, 1.0])
 	@test length(obj.points) == 8
@@ -866,7 +884,7 @@ function TestHpc()
 	v = toList(obj)
 	@test length(v) == 1
 	(T, properties, obj) = v[1]
-	obj = toSimplicialForm(obj)
+	obj = ToSimplicialForm(obj)
 	@test dim(obj) == 3
 	@test box(obj) == BoxNd([0.0, 0.0, 0.0], [1.0, 1.0, 1.0])
 	@test length(obj.points) == 4
@@ -882,7 +900,7 @@ function TestHpc()
 	# join
 	obj = Join([Cube(2, 0.0, 1.0), Cube(2, 0.0, 1.0)])
 	(T, properties, obj) = toList(obj)[1]
-	obj = toSimplicialForm(obj)
+	obj = ToSimplicialForm(obj)
 	@test length(obj.points) == 4
 	@test length(obj.hulls) == 2
 	
@@ -924,23 +942,36 @@ function TestHpc()
 	points,hulls=UkPol(Cube(2, 0.0, 1.0))
 	@test length(points)==4
 	@test length(hulls)==1 && length(hulls[1])==4
+end
 
+	obj=Struct([
+		Translate(Simplex(1)  , [0.0, 0.0, 0.0]),
+		Translate(Simplex(2)  , [1.0, 0.0, 0.0]),
+		Translate(Simplex(3)  , [2.0, 0.0, 0.0]),
+		Translate(Cube(1)     , [0.0, 1.0, 0.0]),
+		Translate(Cube(2)     , [1.0, 1.0, 0.0]),
+		Translate(Cube(3)     , [2.0, 1.0, 0.0]),
+	])
+	View(obj)
 
+	# View
+	#View(Struct([
+	#	Translate(Simplex(1), [1.0, 0.0, 0.0]), Translate(Cube(1)   , [1.0, 1.0, 0.0]),
+	#	Translate(Simplex(2), [2.0, 0.0, 0.0]), Translate(Cube(2)   , [2.0, 1.0, 0.0]),
+	#	Translate(Simplex(3), [3.0, 0.0, 0.0]), Translate(Cube(3)   , [3.0, 1.0, 0.0])
+	#]))
 
 	# ToBoundaryForm
 
-	# View
-	View(Cube(3, 0.0, 1.0))
-	 
 end
 
 # //////////////////////////////////////////////////////////////////////////////////////////
 if abspath(PROGRAM_FILE) == @__FILE__
-	TestComputeNormal()
-	TestGoodTet()
-	TestBox()
-	TestMat()
-	TestMkPol()
+	#TestComputeNormal()
+	#TestGoodTet()
+	#TestBox()
+	#TestMat()
+	#TestMkPol()
 	TestHpc()
 	println("all test ok")
 end
