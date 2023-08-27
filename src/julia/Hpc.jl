@@ -658,9 +658,6 @@ function GetBatches(self::Hpc)
 
 			T[1,2], T[1,3], T[1,4],   T[1,1]
 		)
-		println("TNd",T)
-		println("T4d",T4d)
-
 		for batch in GetBatches(obj)
 				prependTransformation(batch, T4d)
 				# writeProperties(batch, properties) TODO: loosing properties
@@ -692,59 +689,60 @@ end
 
 # //////////////////////////////////////////////////////////////////////////////////////////
 function ToBoundaryForm(self::Hpc)
-	POINTDB = Dict()
-	faces = []
+	DB = Dict{Vector{Float64},Int64}()
+	POINTS=Vector{Vector{Float64}}()
+	FACES = Vector{Vector{Int}}()
+
 	for (T, properties, obj) in toList(self)
 		sf = ToSimplicialForm(obj)
 		points, hulls = [transformPoint(T,p) for p in sf.points], sf.hulls
-		dim = length(points[1])
-		mapped = Dict()
+		pdim = length(points[1])
+		mapped = Dict{Int64,Int64}()
+
+
 		for P in 1:length(points)
-				point = tuple(points[P]...)
-				if !(point in POINTDB)
-					POINTDB[point] = length(POINTDB)
+				point = points[P]
+				@assert point isa Vector{Float64}
+				idx=get(DB,point,0)
+				if idx==0
+					push!(POINTS,point)
+					DB[point]=length(POINTS)
 				end
-				mapped[P] = POINTDB[point]
+				mapped[P]=DB[point]
 		end
+
 		for hull in hulls
 				bfaces = []
-				if length(hull) < (dim + 1)
+				if length(hull) < (pdim + 1)
 					bfaces = [collect(1:length(hull))]
-				elseif length(hull) == (dim + 1)
-					if dim == 0
+				else
+					@assert  length(hull) == (pdim + 1) # it shouls be a simplex
+					if pdim == 0
 						bfaces = [[1]]
-					elseif dim == 1
+					elseif pdim == 1
 						bfaces = [[1], [2]]
-					elseif dim == 2
+					elseif pdim == 2
 						bfaces = [[1, 2], [2, 3], [3, 1]]
-					elseif dim == 3
+					elseif pdim == 3
 						bfaces = [[1, 2, 4], [1, 4, 3], [1, 3, 2], [2, 3, 4]]
 					else
 						error("not supported")
 					end
-				else
-					error("internal error")
 				end
 				for face in bfaces
-					push!(faces, [mapped[hull[it]] for it in face])
+					push!(FACES, [mapped[hull[it]] for it in face])
 				end
 		end
 	end
-	num_occurrence = Dict()
-	for face in faces
-		key = tuple(sort(face))
-		if !(key in num_occurrence)
-				num_occurrence[key] = 0
-		end
-		num_occurrence[key] += 1
+
+	num_occurrence = Dict{Vector{Int64},Int}()
+	for face in FACES
+		Key = sort(face)
+		num_occurrence[Key] = get(num_occurrence,Key,0) + 1
 	end
-	faces = [face for face in faces if num_occurrence[tuple(sort(face))] == 1]
-	points = [nothing for _ in 1:length(POINTDB)]
-	for (point, num) in POINTDB
-		points[num] = point
-	end
-	ret = MkPol(points, faces)
-	return ret
+ 
+	FACES=[face for face in FACES if num_occurrence[sort(face)] == 1]
+	return MkPol(POINTS,FACES)
 end
 
 # //////////////////////////////////////////////////////////////////////////////////////////
@@ -851,7 +849,6 @@ end
 
 function TestHpc()
 
-	if false
 	points = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0], [0.2, 0.2], [0.3, 0.3], [0.4, 0.4], [0.5, 0.5], [0.2, 0.8]]
 	hulls = [collect(1:length(points))]
 	obj = MkPol(points, hulls)
@@ -942,7 +939,7 @@ function TestHpc()
 	points,hulls=UkPol(Cube(2, 0.0, 1.0))
 	@test length(points)==4
 	@test length(hulls)==1 && length(hulls[1])==4
-end
+
 
 	obj=Struct([
 		Translate(Simplex(1)  , [0.0, 0.0, 0.0]),
@@ -954,24 +951,24 @@ end
 	])
 	View(obj)
 
-	# View
-	#View(Struct([
-	#	Translate(Simplex(1), [1.0, 0.0, 0.0]), Translate(Cube(1)   , [1.0, 1.0, 0.0]),
-	#	Translate(Simplex(2), [2.0, 0.0, 0.0]), Translate(Cube(2)   , [2.0, 1.0, 0.0]),
-	#	Translate(Simplex(3), [3.0, 0.0, 0.0]), Translate(Cube(3)   , [3.0, 1.0, 0.0])
-	#]))
-
 	# ToBoundaryForm
+	obj=ToBoundaryForm(Struct([
+		Translate(Cube(2),[0.0,0.0]),
+		Translate(Cube(2),[1.0,0.0])
+	]))
+	(T, properties, obj) = toList(obj)[1]
+	@assert length(obj.hulls)==6
+	@assert length(obj.points)==6
 
 end
 
 # //////////////////////////////////////////////////////////////////////////////////////////
 if abspath(PROGRAM_FILE) == @__FILE__
-	#TestComputeNormal()
-	#TestGoodTet()
-	#TestBox()
-	#TestMat()
-	#TestMkPol()
+	TestComputeNormal()
+	TestGoodTet()
+	TestBox()
+	TestMat()
+	TestMkPol()
 	TestHpc()
 	println("all test ok")
 end
