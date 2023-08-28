@@ -1,21 +1,15 @@
-
-
 using LinearAlgebra
 using Test
+
 import Base.:(==)
 import Base.:*
 import Base.size
 import Base.transpose
 
-
-include("Viewer.jl")
-using .ViewerModule
-
-
-
 using PyCall
 spatial = pyimport_conda("scipy.spatial", "scipy") # the second argument is the conda package name
 
+include("viewer.jl")
 
 # /////////////////////////////////////////////////////////////
 function ComputeTriangleNormal(p0::Vector{Float64}, p1::Vector{Float64}, p2::Vector{Float64})
@@ -648,7 +642,7 @@ end
 
 # //////////////////////////////////////////////////////////////////////////////////////////
 function GetBatches(self::Hpc)
-	batches = Vector{ViewerModule.GLBatch}()
+	batches = Vector{GLBatch}()
 	for (T, properties, obj) in toList(self)
 		T = embed(T, 4)
 		T4d=Matrix4d(
@@ -962,7 +956,7 @@ function TestHpc()
 
 end
 
-# //////////////////////////////////////////////////////////////////////////////////////////
+# ////////////////////////////////////////////////
 if abspath(PROGRAM_FILE) == @__FILE__
 	TestComputeNormal()
 	TestGoodTet()
