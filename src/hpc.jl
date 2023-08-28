@@ -255,7 +255,14 @@ mutable struct BuildMkPol
 			 hulls = [collect(1:length(points))]
 		end
 
-		pdim = length(points[1])	
+		pdim = length(points[1])
+		# special case in zero-dimension
+		if pdim==0
+			self.points=Vector{Vector{Float64}}()
+			push!(self.points,[]) # an 'empty' point
+			self.hulls=[[1]]
+			return self
+		end
 
 		for hull in hulls
 
@@ -512,9 +519,20 @@ function box(self::Hpc)
 end
 
 
+
+
 # //////////////////////////////////////////////////////////////////////////////////////////
 function MkPol(points::Vector{Vector{Float64}}, hulls::Vector{Vector{Int}}=Vector{Vector{Int}}())
 	obj=BuildMkPol(points, hulls)
+	return Hpc(MatrixNd(), [obj])
+end
+
+function MkPol0()
+
+	points=Vector{Vector{Float64}}()
+	push!(points,[])
+	hulls=[[1]]
+	obj=BuildMkPol(points,hulls)
 	return Hpc(MatrixNd(), [obj])
 end
 
@@ -522,8 +540,14 @@ function Struct(pols::Vector{Hpc})
 	return Hpc(MatrixNd(), pols)
 end
 
+
 # //////////////////////////////////////////////////////////////////////////////////////////
 function Cube(dim::Int, From::Float64=0.0, To::Float64=1.0)
+
+	if dim==0
+		return MkPol0()
+	end
+
 	@assert dim>=1
 	points = [[From],[To]]
 	for I in 2:dim
@@ -536,7 +560,11 @@ end
 
 # //////////////////////////////////////////////////////////////////////////////////////////
 function Simplex(dim::Int)
-	@assert dim>=1
+
+	if dim==0
+		return MkPol0()
+	end
+
 	points = [ [0.0 for _ in 1:dim] ]
 	for I in 1:dim
 		point=[0.0 for _ in 1:dim]
@@ -548,9 +576,9 @@ end
 
 # //////////////////////////////////////////////////////////////////////////////////////////
 function Join(pols::Vector{Hpc})
-	points = []
+	points = Vector{Vector{Float64}}()
 	for (T, properties, obj) in toList(Hpc(MatrixNd(), pols))
-		points = [transformPoint(T,p) for p in obj.points]
+		append!(points, [transformPoint(T,p) for p in obj.points])
 	end
 	return MkPol(points)
 end
@@ -637,7 +665,16 @@ function UkPol(self::Hpc)
 		end
 
 	end
-	return [points, hulls]
+
+	# incredible that Julia converts to a vector of vector of float automatically
+	# return [points, hulls]
+
+	ret=Vector{Any}()
+	push!(ret,points)
+	push!(ret,hulls)
+	return ret
+
+
 end
 
 # //////////////////////////////////////////////////////////////////////////////////////////
@@ -958,6 +995,8 @@ end
 
 # ////////////////////////////////////////////////
 if abspath(PROGRAM_FILE) == @__FILE__
+
+
 	TestComputeNormal()
 	TestGoodTet()
 	TestBox()

@@ -1319,7 +1319,7 @@ class Bsp:
 					raise Exception("todo")
 					
 				w=sum([normal[i]*vertices[0][i] for i in range(dim)])
-				plane=normal + [-w]       
+				plane=normal + [-w]
 				
 			self.vertices = vertices
 			self.plane    = plane 
