@@ -18,6 +18,7 @@ set PATH=%PATH%;c:\Julia-1.9.2\bin
 julia
 
 using Pkg
+Pkg.add("Combinatorics)
 Pkg.add("ModernGL")
 Pkg.add("GLFW")
 Pkg.add("StaticArrays")
@@ -35,7 +36,7 @@ julia src/fenvs.jl
 
 
 ```
-set PYTHONPATH=src
+set PYTHONPATH=.
 python pyplasm/viewer.py
 python pyplasm/hpc.py
 python pyplasm/fenvs.py

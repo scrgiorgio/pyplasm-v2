@@ -4,26 +4,24 @@ LEN = length
 AND = all
 OR = any
 
+using Combinatorics
+
 include("viewer.jl")
 include("hpc.jl")
 
 # /////////////////////////////////////////////////////////////////
-"""
-```jldoctest
-julia> C(x,y -> x+y)(1)(2)
-3
-```
-"""
 function C(fun)
-	return function(arg1)
-		return function(arg2)
+	function C1(arg1)
+		function C2(arg2)
 			return fun([arg1,arg2])
 		end
+		return C2
 	end
+	return C1
 end
 
 # /////////////////////////////////////////////////////////////////
-ATAN2(l) = atan2(l[2],l[1])
+ATAN2(l) = atan(l[2],l[1])
 
 # /////////////////////////////////////////////////////////////////
 MOD(l) = float(l[1] % l[2])
@@ -33,9 +31,25 @@ function CAT(args)
 	return reduce(vcat, args)
 end
 
+function ISMAT(v::Vector{Vector{Float64}})
+	return true
+end
+
+function ISMAT(v::MatrixNd)
+	return true
+end
+
+function ISMAT(v::Any)
+	return false
+end
+
 # /////////////////////////////////////////////////////////////////
-function INV(mat)
-	return inv(mat)
+function INV(T::MatrixNd)
+	return invert(T)
+end
+
+function INV(T::Vector{Vector{Float64}})
+	return invert(MatrixNd(T))
 end
 
 # /////////////////////////////////////////////////////////////////
@@ -192,7 +206,7 @@ end
 # /////////////////////////////////////////////////////////////////
 function APPLY(args)
 	f,x = args
-	return apply(f,[x])
+	return f(x)
 end
 
 # /////////////////////////////////////////////////////////////////
@@ -347,14 +361,14 @@ end
 SQR = RAISE(RAISE(PROD))([ID,ID])
 
 function DIV(args)
-	 return reduce((x,y) -> x/float(y), args)
+	 return reduce((x,y) -> x/Float64(y), args)
 end
 
 REVERSE(List) = reverse(List)
 
 # /////////////////////////////////////////////////////////////////
 function TRANS(List)
-	if isa(List, Matrix)
+	if isa(List, MatrixNd)
 		return List'
 	elseif isa(List, Tuple) || isa(List, Array)
 		ret = zip(List...)
@@ -367,7 +381,7 @@ function TRANS(List)
 			end
 		end
 		if cast_to_float
-			return [[float(jt) for jt in it] for it in ret]
+			return [[Float64(jt) for jt in it] for it in ret]
 		end
 		return ret
 	else
@@ -383,11 +397,13 @@ RTAIL(List) = List[1:end-1]
 
 # /////////////////////////////////////////////////////////////////
 function AR(args)
-	 return [args[1] + abs(args[2])]
+	v,value=args
+	 return [v; value]
 end
 
 function AL(args)
-	 return [args[1]] + args[2]
+	value,v=args
+	 return [value;v]
 end
 
 LIST(x) = [x]
@@ -450,15 +466,15 @@ end
 
 # /////////////////////////////////////////////////////////////////
 function NN(n)
-	return function(List)
-		return List^n
+	return function(v)
+		return repeat(v,n)
 	end
 end
 
 # /////////////////////////////////////////////////////////////////
 function DOUBLE_DIESIS(n)
-	return function(List)
-		return List^n
+	return function(v)
+		return repeat(v,n)
 	end
 end
 
@@ -508,39 +524,35 @@ end
 
 # /////////////////////////////////////////////////////////////////
 function TREE(f)
-	function TREE_NO_CURRIED(fun, List)
-		length = length(List)
-		if length == 1
-			return List[1]
+	function TREE1(v)
+		N = length(v)
+		if N == 1
+			return v[1]
 		end
-		k = div(length, 2)
-		return f([TREE_NO_CURRIED(f, List[1:k])] + [TREE_NO_CURRIED(f, List[k+1:end])])
+		middle = trunc(Int,N/2)
+		return f([TREE1(v[1:middle]);TREE1(v[middle+1:N])])
 	end
-	return function(x)
-		return TREE_NO_CURRIED(f,x)
-	end
+	return TREE1
 end
 
 # /////////////////////////////////////////////////////////////////
 function MERGE(f)
-	function MERGE_NO_CURRIED(f, List)
-		list_a, list_b = List
-		if length(list_a) == 0
-			return list_b
+	function MERGE1(v)
+		a, b = v
+		if length(a) == 0
+			return b
 		end
-		if length(list_b) == 0
-			return list_a
+		if length(b) == 0
+			return a
 		end
-		res = f(list_a[1], list_b[1])
+		res = f(a[1], b[1])
 		if !res
-			return [list_a[1]] + MERGE_NO_CURRIED(f,[list_a[2:end], list_b])
+			return [a[1];MERGE1([a[2:end],b])]
 		else
-			return [list_b[1]] + MERGE_NO_CURRIED(f,[list_a, list_b[2:end]])
+			return [b[1];MERGE1([a,b[2:end]])]
 		end
 	end
-	return function(x)
-		return MERGE_NO_CURRIED(f,x)
-	end
+	return MERGE1
 end
 
 # /////////////////////////////////////////////////////////////////
@@ -565,7 +577,7 @@ function PERMUTATIONS(SEQ)
 	ret=[]
 	for i in 1:length(SEQ)
 		element =SEQ[i]
-		rest  =PERMUTATIONS(SEQ[1:i-1] + SEQ[i+1:end])
+		rest  =PERMUTATIONS([ SEQ[1:i-1] ; SEQ[i+1:end] ])
 		for r in rest
 			push!(ret, [element; r])
 		end
@@ -575,7 +587,7 @@ end
 
 # /////////////////////////////////////////////////////////////////
 function IDNT(N)
-	return Matrix(N)
+	return MatrixNd(N)
 end
 
 # /////////////////////////////////////////////////////////////////
@@ -587,8 +599,8 @@ end
 # /////////////////////////////////////////////////////////////////
 function VECTPROD(args)
 	a,b=args
-	ax,ay,az=[float(it) for it in a]
-	bx,by,bz=[float(it) for it in b]
+	ax,ay,az=[Float64(it) for it in a]
+	bx,by,bz=[Float64(it) for it in b]
 	return [
 		ay * bz - by * az,
 		az * bx - bz * ax,
@@ -658,7 +670,6 @@ ISFUNVECT = ISSEQOF(ISFUN)
 ISVECT = COMP([OR, CONS([ISREALVECT, ISFUNVECT])])
 ISPOINT = ISVECT
 
-
 # /////////////////////////////////////////////////////////////////
 function CHOOSE(args)
 	N , K = args
@@ -668,36 +679,18 @@ end
 # /////////////////////////////////////////////////////////////////
 function TRACE(MATRIX)
 	acc=0.0
-	dim=length(MATRIX)
-	for i in 1:dim
-		acc+=MATRIX[i,i]
+	N=dim(MATRIX)
+	for I in 1:N
+		acc+=MATRIX[I,I]
 	end
 	return acc
 end
 
 # /////////////////////////////////////////////////////////////////
-function PASCALTRIANGLE(N)
-	if N==0
-		return [[1]]
-	end
-	if N==1
-		return [[1],[1,1]]
-	end
-	prev=PASCALTRIANGLE(N-1)
-	last_row=prev[end]
-	cur=[1]+[last_row[i-1]+last_row[i]  for i in 2:length(last_row)] + [1]
-	return prev+[cur]
-end
-
-# /////////////////////////////////////////////////////////////////
-function MATHOM(M)
-	dim=length(M)
-	ret=Matrix(dim+1)
-	for R in 1:dim
-		for C in 1:dim
-			ret[R+1,C+1]=M[R,C]
-		end
-	end
+function MATHOM(T)
+	N=dim(T)
+	ret=MatrixNd(N+1)
+	ret[2:N+1,2:N+1]=T[1:N,1:N]
 	return ret
 end
 
@@ -744,15 +737,13 @@ end
 
 # /////////////////////////////////////////////////////////////////
 function CART(l)
-	CART2 = COMP([COMP([CAT, AA(DISTL)]), DISTR])
-	F1 = AA((AA(CONS([ID]))))
-	return TREE(COMP([AA(CAT), CART2]))(F1(l))
+	return vec(collect(Iterators.product(l...)))
 end
 
 # /////////////////////////////////////////////////////////////////
-#function POWERSET(l)
-#	return COMP([COMP([AA(CAT), CART]), AA((CONS([CONS([ID]), K([]))]))])(l)
-#end
+function POWERSET(l)
+	return collect(powerset([1,2,3]))
+end
 
 # /////////////////////////////////////////////////////////////////
 function ARC(args)
@@ -784,13 +775,17 @@ end
 
 # /////////////////////////////////////////////////////////////////
 function GRID(sequence)
-	cursor,points,hulls=(0,[[0]],[])
+	cursor=0
+	points=[[0.0]]
+	hulls=Vector{Vector{Int}}()
+	N=1
 	for value in sequence
-		points = points + [[cursor + abs(value)]]
+		cursor+=abs(value)
+		push!(points,[cursor])
+		N+=1
 		if value>=0
-			hulls += [[length(points)-2,length(points)-1]]
+			push!(hulls,[N-1,N])
 		end
-		cursor = cursor + abs(value)
 	end
 	return  MkPol(points, hulls)
 end
@@ -808,11 +803,11 @@ end
 
 # /////////////////////////////////////////////////////////////////
 function CUBOID(vs)
-	return Scale(Cube(length(vs)),vs)
+	return Scale(Cube(length(vs)),[Float64(it) for it in vs])
 end
 
 function CUBE(size)
-	return CUBOID([size, size, size])
+	return CUBOID([Float64(size), Float64(size), Float64(size)])
 end
 
 
@@ -826,9 +821,9 @@ function SIMPLEX(dim)
 	return Simplex(dim)
 end
 
-RN(pol) = pol.dim()
+RN(pol) = dim(pol)
 
-DIM(pol) = pol.dim()
+DIM(pol) = dim(pol)
 
 # /////////////////////////////////////////////////////////////////
 function ISPOLDIM(dims)
@@ -846,9 +841,8 @@ function MKPOL(points::Vector{Vector{Float64}}, hulls::Vector{Vector{Int}},__pol
 end
 
 # deprecated
-function MKPOL(args_list)
-	points,hulls,__pols=args_list
-	return MKPOL(points, hulls, __pols)
+function MKPOL(args)
+	return MKPOL(args[1], args[2])
 end
 
 # /////////////////////////////////////////////////////////////////
@@ -877,7 +871,7 @@ function TRANSLATE(axis)
 		function TRANSLATE2(pol)
 			axis = ISNUM(axis) ? [axis] : axis
 			values = ISNUM(values) ? [values] : values
-			vt = [0.0] * maximum(axis)
+			vt = [0.0 for I in 1:max(axis...)]
 			for (a, t) in zip(axis, values)
 					vt[a] = t
 			end
@@ -891,19 +885,19 @@ T = TRANSLATE
 
 # /////////////////////////////////////////////////////////////////
 function SCALE(axis)
-	function SCALE1(axis, values)
-		function SCALE2(axis, values, pol)
+	function SCALE1(values)
+		function SCALE2(pol)
 			axis = ISNUM(axis) ? [axis] : axis
 			values = ISNUM(values) ? [values] : values
-			vs = [1.0] * maximum(axis)
+			vs = [1.0 for I in 1:max(axis...)] 
 			for (a, t) in zip(axis, values)
-					vs[a] = t
+				vs[a] = t
 			end
-			return pol.scale(vs)
+			return Scale(pol,vs)
 		end
 		return SCALE2
 	end
-	return SCALE1(axis)
+	return SCALE1
 end
 S = SCALE
 
@@ -911,8 +905,7 @@ S = SCALE
 function ROTATE(plane_indexes)
 	function ROTATE1(angle)
 		function ROTATE2(pol)
-			dim = maximum(plane_indexes)
-			return pol.rotate(plane_indexes[1], plane_indexes[2], angle)
+			return Rotate(pol, plane_indexes[1], plane_indexes[2], angle)
 		end
 		return ROTATE2
 	end
@@ -935,7 +928,7 @@ H = SHEARING
 # /////////////////////////////////////////////////////////////////
 function MAT(matrix)
 	function MAT0(pol)
-		return pol.transform(MatrixNd(matrix))
+		return Transform(pol,MatrixNd(matrix))
 	end
 	return MAT0
 end
@@ -943,8 +936,7 @@ end
 # /////////////////////////////////////////////////////////////////
 function EMBED(up_dim)
 	function EMBED1(pol)
-		new_dim_pol = pol.dim() + up_dim
-		return Hpc(MatrixNd(new_dim_pol+1), [pol])
+		return Hpc(MatrixNd(dim(pol) + up_dim+1), [pol])
 	end
 	return EMBED1
 end
@@ -960,28 +952,36 @@ function STRUCT(seq, nrec=0)
 	if nrec == 0
 		seq = copy(seq)
 	end
-	pols = []
+
+	# collect all geometry wihout transformations
+	pols = Vector{Hpc}()
 	while !isempty(seq) && ISPOL(seq[1])
 		push!(pols, seq[1])
 		seq = seq[2:end]
 	end
+
+	# callect all transformation on the right
 	transformations = []
 	while !isempty(seq) && ISFUN(seq[1])
 		push!(transformations, seq[1])
 		seq = seq[2:end]
 	end
+
 	if !isempty(seq) && !ISPOL(seq[1]) && !ISFUN(seq[1])
 		error("STRUCT arguments not valid, not all elements are pols or transformations")
 	end
+	
+	# recursive on the right, apply transformations
 	if !isempty(seq)
-		assert(ISPOL(seq[1]))
+		@assert(ISPOL(seq[1]))
 		child = STRUCT(seq, nrec+1)
-		assert(ISPOL(child))
+		@assert(ISPOL(child))
 		if !isempty(transformations)
 			child = COMP(transformations)(child)
 		end
 		push!(pols, child)
 	end
+
 	if isempty(pols)
 		error("Cannot find geometry in STRUCT, found only transformations")
 	end
@@ -1275,37 +1275,37 @@ function toHpc(self::Bsp)
 end
 
 UNION(objs) = begin
-	 objs = [Bsp.fromHpc(obj) for obj in objs]
+	 objs = [fromHpc(obj) for obj in objs]
 	 res = objs[1]
 	 for I in 2:length(objs)
-		  res = Bsp.Union(res, objs[I])
+		  res = Union(res, objs[I])
 	 end
 	 return toHpc(res)
 end
 
 INTERSECTION(objs) = begin
-	 objs = [Bsp.fromHpc(obj) for obj in objs]
+	 objs = [fromHpc(obj) for obj in objs]
 	 res = objs[1]
 	 for I in 2:length(objs)
-		  res = Bsp.Intersection(res, objs[I])
+		  res = Intersection(res, objs[I])
 	 end
 	 return toHpc(res)
 end
 
 DIFFERENCE(objs) = begin
-	 objs = [Bsp.fromHpc(obj) for obj in objs]
+	 objs = [fromHpc(obj) for obj in objs]
 	 res = objs[1]
 	 for I in 2:length(objs)
-		  res = Bsp.Difference(res, objs[I])
+		  res = Difference(res, objs[I])
 	 end
 	 return toHpc(res)
 end
 
 XOR(objs) = begin
-	 objs = [Bsp.fromHpc(obj) for obj in objs]
+	 objs = [fromHpc(obj) for obj in objs]
 	 res = objs[1]
 	 for I in 2:length(objs)
-		  res = Bsp.Xor(res, objs[I])
+		  res = Xor(res, objs[I])
 	 end
 	 return toHpc(res)
 end
@@ -1331,75 +1331,75 @@ end
 
 # ///////////////////////////////////////////////////////////
 function SKELETON(ord)
-	 error("not implemented")
-	 SKEL_0 = SKELETON(0)
-	 SKEL_1 = SKELETON(1)
-	 SKEL_2 = SKELETON(2)
-	 SKEL_3 = SKELETON(3)
-	 SKEL_4 = SKELETON(4)
-	 SKEL_5 = SKELETON(5)
-	 SKEL_6 = SKELETON(6)
-	 SKEL_7 = SKELETON(7)
-	 SKEL_8 = SKELETON(8)
-	 SKEL_9 = SKELETON(9)
+	error("not implemented")
+	SKEL_0 = SKELETON(0)
+	SKEL_1 = SKELETON(1)
+	SKEL_2 = SKELETON(2)
+	SKEL_3 = SKELETON(3)
+	SKEL_4 = SKELETON(4)
+	SKEL_5 = SKELETON(5)
+	SKEL_6 = SKELETON(6)
+	SKEL_7 = SKELETON(7)
+	SKEL_8 = SKELETON(8)
+	SKEL_9 = SKELETON(9)
 end
 
 # ///////////////////////////////////////////////////////////
-function SIZE(List)
-	 function SIZE1(pol)
-		  size = box(pol).size()
-		  return isa(List, Vector) ? [size[i] for i in List] : size[List]
-	 end
-	 return SIZE1
+function SIZE(sel)
+	function SIZE1(pol)
+		S = size(box(pol))
+		return isa(sel, Vector) ? [S[i] for i in sel] : S[sel]
+	end
+	return SIZE1
 end
 
 # ///////////////////////////////////////////////////////////
-function MIN(List)
-	 function MIN1(pol)
-		  box = box(pol)
-		  return isa(List, Vector) ? [box.p1[i] for i in List] : box.p1[List]
-	 end
-	 return MIN1
+function MIN(sel)
+	function MIN1(pol)
+		b = box(pol)
+		return isa(sel, Vector) ? [b.p1[i] for i in sel] : b.p1[sel]
+	end
+	return MIN1
 end
 
 # ///////////////////////////////////////////////////////////
-function MAX(List)
-	 function MAX1(pol)
-		  box = box(pol)
-		  return isa(List, Vector) ? [box.p2[i] for i in List] : box.p2[List]
-	 end
-	 return MAX1
+function MAX(sel)
+	function MAX1(pol)
+		b = box(pol)
+		return isa(sel, Vector) ? [b.p2[i] for i in sel] : b.p2[sel]
+	end
+	return MAX1
 end
 
 # ///////////////////////////////////////////////////////////
-function MED(List)
-	 function MED1(pol)
-		  center = box(pol).center()
-		  return isa(List, Vector) ? [center[i] for i in List] : center[List]
-	 end
-	 return MED1
+function MED(sel)
+	function MED1(pol)
+		c = center(box(pol))
+		return isa(sel, Vector) ? [c[i] for i in sel] : c[sel]
+	end
+	return MED1
 end
 
 # ///////////////////////////////////////////////////////////
 function ALIGN(args)
-	 function ALIGN0(args, pols)
-		  pol1, pol2 = pols
-		  box1, box2 = box(pol1), box(pol2)
-		  if isa(args, Vector) && !isempty(args) && ISNUM(args[1])
-				args = [args]
-		  end
-		  max_index = maximum([index for (index, pos1, po2) in args])
-		  vt = zeros(max_index)
-		  for (index, pos1, pos2) in args
-				p1 = ifelse(pos1 == MIN, box1.p1, ifelse(pos1 == MAX, box1.p2, box1.center()))
-				p1 = ifelse(index <= length(p1), p1[index], 0.0)
-				p2 = ifelse(pos2 == MIN, box2.p1, ifelse(pos2 == MAX, box2.p2, box2.center()))
-				p2 = ifelse(index <= length(p2), p2[index], 0.0)
-				vt[index] -= (p2 - p1)
-		  end
-		  return Struct([pol1, pol2.translate(vt)])
-	 end
-	 return pols -> ALIGN0(args, pols)
+	function ALIGN0(args, pols)
+		pol1, pol2 = pols
+		box1, box2 = box(pol1), box(pol2)
+		if isa(args, Vector) && !isempty(args) && ISNUM(args[1])
+			args = [args]
+		end
+		max_index = max([index for (index, pos1, po2) in args]...)
+		vt = zeros(max_index)
+		for (index, pos1, pos2) in args
+			p1 = ifelse(pos1 == MIN, box1.p1, ifelse(pos1 == MAX, box1.p2, center(box1)))
+			p1 = ifelse(index <= length(p1), p1[index], 0.0)
+			p2 = ifelse(pos2 == MIN, box2.p1, ifelse(pos2 == MAX, box2.p2, center(box2)))
+			p2 = ifelse(index <= length(p2), p2[index], 0.0)
+			vt[index] -= (p2 - p1)
+		end
+		return Struct([pol1, Translate(pol2,vt)])
+	end
+	return pols -> ALIGN0(args, pols)
 end
 TOP = ALIGN([[3, MAX, MIN], [1, MED, MED], [2, MED, MED]])
 BOTTOM = ALIGN([[3, MIN, MAX], [1, MED, MED], [2, MED, MED]])
@@ -1409,33 +1409,31 @@ UP = ALIGN([[2, MAX, MIN], [3, MIN, MIN]])
 DOWN = ALIGN([[2, MIN, MAX], [3, MIN, MIN]])
 
 # ///////////////////////////////////////////////////////////
-function BOX(List)
-	 function BOX0(List, pol)
-		  if !isa(List, Vector)
-				List = [List]
-		  end
-		  dim = length(List)
-		  box = box(pol)
-		  vt = [box.p1[i] for i in List]
-		  vs = [box.size()[i] for i in List]
-		  return Cube(dim).scale(vs).translate(vt)
-	 end
-	 return pol -> BOX0(List, pol)
+function BOX(sel)
+	function BOX0(pol)
+		if !isa(sel, Vector)
+			sel = [sel]
+		end
+		dim = length(sel)
+		b = box(pol)
+		vt = [  b.p1[i] for i in sel]
+		vs = [size(b)[i] for i in sel]
+		return Translate(Scale(Cube(dim),vs),vt)
+	end
+	return BOX0
 end
 
 # ///////////////////////////////////////////////////////////
 function MAP(fn)
-	function MAP0(fn, pol)
+	function MAP0(pol)
 		if isa(fn, Tuple) || isa(fn, Vector)
-			map_fn = point -> [f(point) for f in fn]
+			return MapFn(pol, p -> [f(p) for f in fn])
 		else
-			map_fn = fn
+			return MapFn(pol,fn)
 		end
-		return pol.mapFn(map_fn)
 	end
-	return pol -> MAP0(fn, pol)
+	return MAP0
 end
-
 
 
 # /////////////////////////////////////////////////////////////////
@@ -1445,9 +1443,12 @@ end
 
 # ///////////////////////////////////////////////////////////
 function CIRCUMFERENCE(R)
-	return N -> begin
-		MAP(p -> [R*cos(p[1]), R*sin(p[1])], INTERVALS(2*pi)(N))
+	function CIRCUMFERENCE1(N)
+		domain=INTERVALS(2*pi)(N)
+		fn=p -> [R*cos(p[1]), R*sin(p[1])]
+		return MAP(fn)(domain)
 	end
+	return CIRCUMFERENCE1
 end
 
 # ///////////////////////////////////////////////////////////
@@ -1460,7 +1461,7 @@ function RING(radius)
 	R1, R2 = radius
 	function RING0(subds)
 		N, M = subds
-		domain = POWER([INTERVALS(2*pi)(N), INTERVALS(R2-R1)(M)]).translate([0.0, R1])
+		domain = Translate(POWER([INTERVALS(2*pi)(N), INTERVALS(R2-R1)(M)]),[0.0, R1])
 		fun = p -> [p[2]*cos(p[1]), p[2]*sin(p[1])]
 		return MAP(fun, domain)
 	end
@@ -1578,7 +1579,6 @@ function DODECAHEDRON()
 	]))
 end
 
-
 # /////////////////////////////////////////////////////////////
 function ICOSAHEDRON()
 	g = 0.5*(sqrt(5)-1)
@@ -1588,7 +1588,6 @@ function ICOSAHEDRON()
 	rectz = R([2, 3])(pi/2)(R([1, 2])(pi/2)(rectx))
 	return S([1, 2, 3])([b, b, b])(JOIN([rectx, recty, rectz]))
 end
-
 
 function TETRAHEDRON()
 	 return JOIN([T(3)(-1.0/3.0)(NGON(3)), MK([0, 0, 1])])
@@ -2164,7 +2163,7 @@ end
 
 # //////////////////////////////////////////////////////////////
 function SOLIDIFY(pol)
-	box = pol.box()
+	box = box(pol)
 	min = box.p1[1]
 	max = box.p2[1]
 	siz = max-min
@@ -2495,8 +2494,8 @@ function NUBSPLINE(degree, totpoints=80)
 	function NUBSPLINE1(knots)
 		function NUBSPLINE2(points)
 			m = length(knots)
-			tmin = minimum(knots)
-			tmax = maximum(knots)
+			tmin = min(knots...)
+			tmax = max(knots...)
 			tsiz = tmax-tmin
 			v = [tsiz/float(totpoints-1) for i in range(totpoints-1)]
 			@assert length(v)+1 == totpoints
@@ -2549,8 +2548,8 @@ function NURBSPLINE(degree, totpoints=80)
 	function NURBSPLINE1(knots)
 		function NURBSPLINE2(points)
 			m = length(knots)
-			tmin = minimum(knots)
-			tmax = maximum(knots)
+			tmin = min(knots...)
+			tmax = max(knots...)
 			tsiz = tmax-tmin
 			v = [tsiz/float(totpoints-1) for i in range(totpoints-1)]
 			@assert length(v)+1 == totpoints
@@ -2753,7 +2752,7 @@ end
 
 function TestMinkowski()
 	p = MKPOL(
-		[[0,0]],
+		[[0.0,0.0]],
 		[[1]],
 		[[1]])
 	B = MINKOWSKI([  [-1.0/2.0,-1*sqrt(3.0/2.0)] , [-1.0/2.0,sqrt(3.0/2.0)] , [1,0] ])(p)
@@ -2852,4 +2851,228 @@ function TestMkPol()
 	VIEW(out)
 end
 
+
+
+# ////////////////////////////////////////////////
+if abspath(PROGRAM_FILE) == @__FILE__
+
+	if true
+
+		@assert C( v -> sum(v))(1)(2)==3
+		@assert CAT([[1,2],[3,4]])==[1, 2, 3, 4]
+		@assert INV([[1.0,0.0],[0.0,1.0]])==MatrixNd([[1.0, 0.0], [0.0, 1.0]])
+		@assert EVERY(x -> x>=0,[1,2,3,4])==true
+		@assert EVERY(x -> x>0,[1,-2,3,4])==false
+		@assert AND([true,true])==true
+		@assert AND([true,false])==false
+		@assert ID(10)==10
+		@assert DISTL([1,[2,3,4]])==[[1, 2], [1, 3], [1, 4]]
+		@assert DISTR([[1,2,3],0])==[[1, 0], [2, 0], [3, 0]]
+		@assert COMP([v -> [v;3], v -> [v;2], v -> [v;1]])([0])==[0,1,2,3]
+		@assert AA(x -> x*2)([1,2,3])==[2, 4, 6]
+		@assert EQ([1,1,1])==true
+		@assert EQ([1,1,2])==false
+		@assert NEQ([1,1,2])==true
+		@assert NEQ([1,1,1])==false
+		@assert FILTER(LE(0))([-1,0,1,2,3,4])==[-1, 0]
+		@assert FILTER(GE(0))([-1,0,1,2,3,4])==[0, 1, 2, 3, 4]
+		@assert APPLY([ x -> x*2, 2])==4
+		@assert INSL(x -> x[1]-x[2])([1,2,3])==-4 # (1-2)-4
+		@assert CONS([x -> x+1,x -> x+2])(0)==[1, 2]
+		@assert IF([x -> x>0, K(10),K(20)])(+1)==10
+		@assert IF([x -> x>0, K(10),K(20)])(-1)==20
+		@assert LIFT(ADD)([cos,sin])(pi/2.0)==1.0
+		@assert RAISE(ADD)([1,2])==3
+		@assert RAISE(ADD)([cos,sin])(pi/2)==1.0
+		@assert ISNUM(0.0)==true
+		@assert ISFUN(x -> x) and ISFUN(abs)
+		@assert !ISFUN(3) 
+		@assert ISSEQOF(x -> isa(x,Int))([1,2,3  ])==true
+		@assert ISSEQOF(x -> isa(x,Int))([1,2,3.0])==false
+		@assert ISMAT([[1.0,2.0],[3.0,4.0]]) && ISMAT(MatrixNd(3))
+		@assert ISMAT([1,2,3,4])==false
+		@assert VECTSUM([[10,11,12],[0,1,2],[1,1,1]])==[11, 13, 15]
+		@assert VECTDIFF([[10,11,12],[0,1,2],[1,1,1]])==[9, 9, 9]
+		@assert MEANPOINT([[0,0,0],[1,1,1],[2,2,2]])==[1.0, 1.0, 1.0]
+		@assert SUM([1,2,3])==6
+		@assert SUM([[1,2,3],[4,5,6]])==[5, 7, 9]
+		@assert SUM([[[1,2],[3,4]],[[10,20],[30,40]],[[100,200],[300,400]] ])==[[111, 222], [333, 444]]
+		@assert DIFF(2)==-2
+		@assert DIFF([1,2,3])==-4
+		@assert DIFF([[1,2,3],[1,2,3]])==[0,0,0]
+		@assert PROD([1,2,3,4])==24
+		@assert PROD([[1,2,3],[4,5,6]])==32
+		@assert DIV([10.0,2.0,5.0])==1
+		@assert REVERSE([1,2,3])==[3, 2, 1]
+		@assert REVERSE([1])==[1]
+		@assert TRANS([[1.0,2.0],[3.0,4.0]])==[[1.0, 3.0], [2.0, 4.0]]
+		@assert AR([[1,2,3],0])==[1, 2, 3, 0]
+		@assert AL([0,[1,2,3]])==[0, 1, 2, 3]
+		@assert PROGRESSIVESUM([1,2,3,4])==[1, 3, 6, 10]
+		@assert INTSTO(5)==[1, 2, 3, 4, 5]
+		@assert FROMTO([1,4])==[1, 2, 3, 4]
+		@assert S1([1,2,3])==1
+		@assert S2([1,2,3])==2
+		@assert N(3)(10)==[10, 10, 10]
+		@assert DIESIS(3)(10)==[10, 10, 10]
+		@assert NN(3)([10])==[10, 10, 10]
+		@assert DOUBLE_DIESIS(3)([10])==[10, 10, 10]
+		@assert AS(SEL)([1,2,3])([10,11,12])==[10, 11, 12]
+		@assert AC(SEL)([1,2,3])([10,11,[12,[13]]])==13
+		#@assert CHARSEQ('hello')==['h', 'e', 'l', 'l', 'o']
+		#@assert STRING(CHARSEQ('hello'))=='hello'
+		@assert RANGE([1,3])==[1, 2, 3]
+		@assert RANGE([3,1])==[3, 2, 1]
+		@assert SIGN(10)==1
+		@assert SIGN(-10)==-1
+		@assert TREE(x -> x[1]>=x[end] ? x[1] : x[end])([1,2,3,4,3,2,1])==4
+		@assert TREE(x -> x[1]>=x[end] ? x[1] : x[end])([1,2,3,4,3,2])==4
+		@assert MERGE((x,y) -> x>y)([[1,3,4,5],[2,4,8]])==[1, 2, 3, 4, 4, 5, 8]
+		@assert CASE([[LT(0),K(-1)],[C(EQ)(0),K(0)],[GT(0),K(+1)]])(-10)==-1
+		@assert CASE([[LT(0),K(-1)],[C(EQ)(0),K(0)],[GT(0),K(+1)]])(0)==0
+		@assert CASE([[LT(0),K(-1)],[C(EQ)(0),K(0)],[GT(0),K(+1)]])(10)==1
+		@assert length(PERMUTATIONS([1,2,3]))==6
+		@assert toList(IDNT(0))==[]
+		@assert toList(IDNT(2))==[[1.0, 0.0], [0.0, 1.0]]
+		@assert abs(SPLIT_2PI(4)[3]-PI)<1e-4
+		@assert VECTPROD([[1,0,0],[0,1,0]])==[0.0, 0.0, 1.0]
+		@assert VECTPROD([[0,1,0],[0,0,1]])==[1.0, 0.0, 0.0]
+		@assert VECTPROD([[0,0,1],[1,0,0]])==[0.0, 1.0, 0.0]
+		@assert VECTNORM([1,0,0])==1.0
+		@assert INNERPROD([[1,2,3],[4,5,6]])==32.0
+		@assert SCALARVECTPROD([2,[0,1,2]])==[0, 2, 4]
+		@assert SCALARVECTPROD([[0,1,2],2])==[0, 2, 4]
+		@assert MIXEDPROD([[1.0,0.0,0.0],[0.0,1.0,0.0],[0.0,0.0,1.0]])==1.0
+		@assert UNITVECT([2,0,0])==[1.0, 0.0, 0.0]
+		@assert UNITVECT([1,1,1])==UNITVECT([2,2,2])
+		@assert DIRPROJECT([1.0,0.0,0.0])([2.0,0.0,0.0])==[2.0, 0.0, 0.0]
+		@assert DIRPROJECT([1.0,0.0,0.0])([0.0,1.0,0.0])==[0.0, 0.0, 0.0]
+		@assert ORTHOPROJECT([1.0,0.0,0.0])([1.0,1.0,0.0])==[0.0, 1.0, 0.0]
+		@assert FACT(4)==24
+		@assert FACT(0)==	1
+		@assert CHOOSE([7,3])==35.0
+		@assert TRACE(MatrixNd([[5.0,0.0],[0.0,10.0]]))==15.0
+		@assert toList(MATHOM(MatrixNd( [[1,2],[3,4]])))==[[1.0, 0.0, 0.0], [0.0, 1.0, 2.0], [0.0, 3.0, 4.0]]
+		@assert SCALARMATPROD([10.0,[[1,2],[3,4]]])==[[10.0, 20.0], [30.0, 40.0]]
+		@assert ORTHO([[1,0],[0,1]])==[[1.0, 0.0], [0.0, 1.0]]
+		@assert SKEW([[1,0],[0,1]])==[[0.0, 0.0], [0.0, 0.0]]
+		@assert length(CART([ [1, 2, 3], ['a', 'b'],[10,11] ]))==12
+		@assert length(POWERSET([1, 2, 3]))==8
+		@assert ISPOL(Cube(2))==true
+		@assert box(GRID([1,-1,1])) == BoxNd([0.0], [3.0])
+		@assert box(GRID([-1,1,-1,1]))==BoxNd([1.0], [4.0])
+		@assert box(INTERVALS(10)(8))==BoxNd([0.0], [10.0])
+		@assert box(CUBOID([1,2,3]))==BoxNd([0.0, 0.0, 0.0], [1.0, 2.0, 3.0])
+		@assert box(SIMPLEX(3))==BoxNd([0.0, 0.0, 0.0], [1.0, 1.0, 1.0])
+		@assert RN(Cube(2))==2
+		@assert DIM(Cube(2))==2
+		@assert box(MKPOL([[0.0,0.0],[1.0,0.0],[1.0,1.0],[0.0,1.0]], [[1,2,3,4]] ))==BoxNd([0.0, 0.0], [1.0, 1.0])
+		@assert box((TRANSLATE(3)(2)(Cube(2))))== BoxNd([0.0, 0.0, 2.0], [1.0, 1.0, 2.0])
+		@assert box((TRANSLATE([1,3])([1,2])(Cube(2))))== BoxNd([1.0, 0.0, 2.0], [2.0, 1.0, 2.0])
+		@assert box((SCALE(3)(2)(Cube(3))))==BoxNd([0.0, 0.0, 0.0], [1.0, 1.0, 2.0])
+		@assert box((SCALE([3,1])([4,2])(Cube(3))))==BoxNd([0.0, 0.0, 0.0], [2.0, 1.0, 4.0])
+		@assert fuzzyEqual(box((ROTATE([1,2])(PI/2)(Cube(2)))),BoxNd([-1.0,0.0],[0.0,+1.0]))
+		@assert box((MAT([[1,0,0],[1,1,0],[2,0,1]])(Cube(2))))==BoxNd([1.0, 2.0], [2.0, 3.0])
+
+		@assert box((STRUCT([
+			Cube(2),
+			T([1,2])([1.0,1.0]),
+			T([1,2])([1.0,1.0]),
+			Cube(2),
+			Cube(2,1.0,2.0)])))==BoxNd([0.0, 0.0], [4.0, 4.0])
+
+		@assert box((STRUCT([
+			T([1,2])([1,1]),
+			T([1,2])([1,1]),
+			Cube(2),
+			T([1,2])([1,1]),
+			T([1,2])([1,1]),
+			Cube(2),
+			Cube(2,1.0,2.0)])))==BoxNd([2.0, 2.0], [6.0, 6.0])
+
+		@assert box(JOIN([Cube(2,0.0,1.0)]))==BoxNd([0.0, 0.0], [1.0, 1.0])
+		@assert POWER([2,2])==4.0
+		@assert box((POWER([Cube(2),Cube(1)])))==BoxNd([0.0, 0.0, 0.0], [1.0, 1.0, 1.0])
+		@assert SIZE(1)(Cube(2))==1.0
+		@assert SIZE([1,3])(SCALE([1,2,3])([1,2,3])(Cube(3)))==[1.0, 3.0]
+		@assert MIN(1)(Cube(2))==0.0
+		@assert MIN([1,3])(TRANSLATE([1,2,3])([10.0,20.0,30.0])(Cube(3)))==[10.0, 30.0]
+		@assert MAX(1)(Cube(2))==1.0
+		@assert MAX([1,3])(TRANSLATE([1,2,3])([10.0,20.0,30.0])(Cube(3)))==[11.0, 31.0]
+		@assert MED(1)(Cube(2))==0.5
+		@assert MED([1,3])(Cube(3))==[0.5, 0.5]
+		@assert box((ALIGN([3,MAX,MIN])([Cube(3),Cube(3)])))==BoxNd([0.0, 0.0, 0.0], [1.0, 1.0, 2.0])
+		@assert box((TOP([Cube(3),Cube(3)])))==BoxNd([0.0, 0.0, 0.0], [1.0, 1.0, 2.0])
+		@assert box((BOTTOM([Cube(3),Cube(3)])))==BoxNd([0.0, 0.0, -1.0], [1.0, 1.0, 1.0])
+		@assert box((LEFT([Cube(3),Cube(3)])))==BoxNd([-1.0, 0.0, 0.0], [1.0, 1.0, 1.0])
+		@assert box((RIGHT([Cube(3),Cube(3)])))==BoxNd([0.0, 0.0, 0.0], [2.0, 1.0, 1.0])
+		@assert box((UP([Cube(3,0.0,1.0),Cube(3,5.0,6.0)])))==BoxNd([0.0, 0.0, 0.0], [6.0, 2.0, 1.0])
+		@assert box((DOWN([Cube(3,0.0,1.0),Cube(3,5.0,6.0)])))==BoxNd([0.0, -1.0, 0.0], [6.0, 1.0, 1.0])
+
+		obj=Translate(Cube(3),[1.0,2.0,3.0])
+		@assert box(BOX([1,3])(obj))==BoxNd([1.0, 3.0], [2.0, 4.0])
+
+		obj=Translate(Cube(3),[1.0,2.0,3.0])
+		@assert box(BOX(3)(obj))==BoxNd([3.0], [4.0])
+
+		@assert box((MAP([S1,S2])(Cube(2))))==BoxNd([0.0, 0.0], [1.0, 1.0])
+		@assert box((MAP(ID)(Cube(2))))==BoxNd([0.0, 0.0], [1.0, 1.0])
+		@assert box(CIRCUMFERENCE(1)(8))==BoxNd([-1.0, -1.0], [1.0, 1.0])
+		@assert box((RING([0.5,1])([8,8])))==BoxNd([-1.0, -1.0], [1.0, 1.0])
+		@assert box( CIRCLE(1.0)([8,8]))==BoxNd([-1.0, -1.0], [1.0, 1.0])
+		@assert fuzzyEqual(box(CYLINDER([1.0,2.0])(8)),BoxNd([-1,-1,0],[+1,+1,2]))
+		@assert box((SPHERE(1)([8,8])))==BoxNd([-1.0, -1.0, -1.0], [1.0, 1.0, 1.0])
+		@assert fuzzyEqual(box((TORUS([1,2])([8,8]))),BoxNd([-2,-2,-0.5],[+2,+2,+0.5]))
+		@assert fuzzyEqual(box((CONE([1.0,3.0])(16))),BoxNd([-1,-1,0],[+1,+1,3]))
+		@assert CURVE2MAPVECT(t -> [t[0]+1,t[0]+2])[0]([10])==11
+		@assert CURVE2MAPVECT(t -> [t[0]+1,t[0]+2])[1]([10])==12
+		
+		@assert fuzzyEqual(box(UNION([
+			Cube(2,0.0,1.0),
+			Cube(2,0.5,1.5)])),BoxNd([0.0,0.0],[1.5,1.5]))
+		@assert fuzzyEqual(box(INTERSECTION([
+			Cube(2,0.0,1.0),
+			Cube(2,0.5,1.5)])),BoxNd([0.5,0.5],[1.0,1.0]))
+		@assert fuzzyEqual(box(DIFFERENCE([
+			Cube(2,0.0,1.0),
+			Cube(2,0.5,1.5)])),BoxNd([0.0,0.0],[1.0,1.0]))
+		@assert fuzzyEqual(box(XOR([
+			Cube(2,0,1),
+			Cube(2,0.5,1.5)])),BoxNd([0.0,0.0],[1.5,1.5]))
+
+
+	else
+
+		tests = MyTests()
+		tests.TestCube()
+		tests.TestMapSphere()
+		tests.TestMkPol()
+		tests.TestSphere()
+		tests.TestTorus()
+		tests.TestBezier()
+		tests.TestCoonsPatch()
+		tests.TestRuledSurface()
+		tests.TestProfileProdSurface()
+		tests.TestRotationalSurface()
+		tests.TestCylindricalSurface()
+		tests.TestConicalSurface()
+		tests.TestCubicHermite()
+		tests.TestPermutahedron()
+		tests.TestSchegel3d()
+		tests.TestCubicSpline()
+		tests.TestBilinarSurface()
+		tests.TestBiquadraticSurface()
+		tests.TestHermiteSurface()
+		tests.TestBezierSurface()
+		tests.TestBezierManifold()
+		tests.TestOffset()
+		tests.TestThinSolid()
+		tests.TestEllipse()
+		tests.TestBezierStripe()
+		tests.TestDisplayNubSpline()
+		tests.TestDisplayNurbsSpline()
+		tests.TestMinkowski()
+
+	end
+end
 
