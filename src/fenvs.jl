@@ -3106,20 +3106,6 @@ if abspath(PROGRAM_FILE) == @__FILE__
 		@assert fuzzyEqual(box((TORUS([1.0,2.0])([8,8]))),BoxNd([-2.0,-2.0,-0.5],[+2.0,+2.0,+0.5]))
 		@assert fuzzyEqual(box((CONE([1.0,3.0])(16))),BoxNd([-1.0,-1.0,0.0],[+1.0,+1.0,3.0]))
 
-		# BROKEN
-		if false
-			@assert fuzzyEqual(box(UNION([
-				Cube(2,0.0,1.0),
-				Cube(2,0.5,1.5)])),BoxNd([0.0,0.0],[1.5,1.5]))
-			@assert fuzzyEqual(box(INTERSECTION([
-				Cube(2,0.0,1.0),
-				Cube(2,0.5,1.5)])),BoxNd([0.5,0.5],[1.0,1.0]))
-			@assert fuzzyEqual(box(DIFFERENCE([
-				Cube(2,0.0,1.0),
-				Cube(2,0.5,1.5)])),BoxNd([0.0,0.0],[1.0,1.0]))
-			@assert fuzzyEqual(box(XOR([
-				Cube(2,0,1),
-				Cube(2,0.5,1.5)])),BoxNd([0.0,0.0],[1.5,1.5]))
 
 
 		end
@@ -3149,6 +3135,22 @@ if abspath(PROGRAM_FILE) == @__FILE__
 		TestBezierSurface()
 		TestThinSolid()
 	end
+
+
+		# BROKEN
+		if false
+			@assert fuzzyEqual(box(UNION([
+				Cube(2,0.0,1.0),
+				Cube(2,0.5,1.5)])),BoxNd([0.0,0.0],[1.5,1.5]))
+			@assert fuzzyEqual(box(INTERSECTION([
+				Cube(2,0.0,1.0),
+				Cube(2,0.5,1.5)])),BoxNd([0.5,0.5],[1.0,1.0]))
+			@assert fuzzyEqual(box(DIFFERENCE([
+				Cube(2,0.0,1.0),
+				Cube(2,0.5,1.5)])),BoxNd([0.0,0.0],[1.0,1.0]))
+			@assert fuzzyEqual(box(XOR([
+				Cube(2,0,1),
+				Cube(2,0.5,1.5)])),BoxNd([0.0,0.0],[1.5,1.5]))
 
 	# BROKEN
 	if false
