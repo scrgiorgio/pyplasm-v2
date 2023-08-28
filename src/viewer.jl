@@ -909,7 +909,7 @@ function releaseGpuResources(viewer::Viewer)
 end
 
 # ///////////////////////////////////////////////////////////////////////
-function runViewer(viewer::Viewer)
+function runViewer(viewer::Viewer,title::String="Plasm")
 
 	ret_code=GLFW.Init()
 	println("GLFW init returned ",ret_code)
@@ -920,7 +920,7 @@ function runViewer(viewer::Viewer)
 	#GLFW.WindowHint(GLFW.OPENGL_FORWARD_COMPAT, GL_TRUE)
 	#GLFW.WindowHint(GLFW.OPENGL_PROFILE, GLFW.OPENGL_CORE_PROFILE)
 	
-	win = GLFW.CreateWindow(viewer.W, viewer.H, "Plasm")
+	win = GLFW.CreateWindow(viewer.W, viewer.H, title)
 	viewer.win=win	
 	viewer.exitNow=false
 	GLFW.MakeContextCurrent(win)
@@ -943,7 +943,7 @@ function runViewer(viewer::Viewer)
 	GLFW.SetScrollCallback(win,      function((win,dx,dy)) handleMouseWheelEvent(viewer,dy) end)	
 
 	handleResizeEvent(viewer)
-	while !viewer.exitNow
+	while !viewer.exitNow && !GLFW.WindowShouldClose(win)
 		glRender(viewer)
 		GLFW.SwapBuffers(win)
 		GLFW.PollEvents()
@@ -956,10 +956,11 @@ function runViewer(viewer::Viewer)
 end
 
 # ///////////////////////////////////////////////////////////////////////
-function GLView(batches::Vector{GLBatch})
+function GLView(batches::Vector{GLBatch},title::String="Plasm.jl")
 	
 	global viewer
 	viewer=Viewer(batches)
+	viewer
 	
 	# calculate bounding box -> (-1,+1) ^3
 	BOX=invalidBox()
@@ -997,7 +998,7 @@ function GLView(batches::Vector{GLBatch})
 		viewer.walk_speed = MaxSize / 100.0
 	end
 	redisplay(viewer)
-	runViewer(viewer)
+	runViewer(viewer, title)
 	
 end
 

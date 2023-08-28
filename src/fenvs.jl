@@ -778,7 +778,7 @@ function PRINT(obj)
 end
 
 # /////////////////////////////////////////////////////////////////
-function VIEW(obj,title::String="")
+function VIEW(obj,title::String="Plasm.jl")
 	View(obj, title)
 end
 
@@ -2856,7 +2856,7 @@ function TestEllipse()
 end
 
 function TestBezierStripe()
-	vertices = [[0,0],[1.5,0],[-1,2],[2,2],[2,0]]
+	vertices = [[0.0,0.0],[1.5,0.0],[-1.0,2.0],[2.0,2.0],[2.0,0.0]]
 	VIEW(Struct([POLYLINE(vertices),Power(BEZIERSTRIPE([vertices,0.25,22]),QUOTE([0.9]))]), "TestBezierStripe")
 end
 
@@ -2910,7 +2910,7 @@ function TestDiff()
 end
 
 function TestCube()
-	VIEW(Cube(3))
+	VIEW(Cube(3),"TestCube")
 end
 
 function TestMapSphere()
@@ -2924,17 +2924,15 @@ function TestMapSphere()
 		sin(p[1])
 	]
 	obj = MAP(fn)(domain)
-	VIEW(obj)
+	VIEW(obj,"TestMapSphere")
 end
 
 function TestMkPol()
 	out = MkPol(
 		[[0.0],[1.0],[2.0],[3.0],[4.0],[5.0]],
 		[[6,4],[1,2]])
-	VIEW(out)
+	VIEW(out,"TestMkPol")
 end
-
-
 
 # ////////////////////////////////////////////////
 if abspath(PROGRAM_FILE) == @__FILE__
@@ -3122,45 +3120,47 @@ if abspath(PROGRAM_FILE) == @__FILE__
 			@assert fuzzyEqual(box(XOR([
 				Cube(2,0,1),
 				Cube(2,0.5,1.5)])),BoxNd([0.0,0.0],[1.5,1.5]))
+
+
 		end
+		print("All assert ok")
 
-	else
+	end
 
-		# ok
-		if false
-			#TestCube()
-			#TestMkPol()
-			#TestSphere()
-			#TestMapSphere()
-			#TestTorus()
-			#TestBezier()
-			TestCoonsPatch()
-			TestRuledSurface()
-			TestProfileProdSurface()
-			TestRotationalSurface()
-			TestConicalSurface()
-			TestCubicHermite()
-			TestSchegel3d()
-			TestHermiteSurface()
-			TestPermutahedron() 
-			TestCubicSpline() 
-			TestBilinarSurface()
-			TestBiquadraticSurface()
-			TestBezierSurface()
-		end
+	# ok
+	if false
+		TestCube()
+		TestMkPol()
+		TestSphere()
+		TestMapSphere()
+		TestTorus()
+		TestBezier()
+		TestCoonsPatch()
+		TestRuledSurface()
+		TestProfileProdSurface()
+		TestRotationalSurface()
+		TestConicalSurface()
+		TestCubicHermite()
+		TestSchegel3d()
+		TestHermiteSurface()
+		TestPermutahedron() 
+		TestBilinarSurface()
+		TestBiquadraticSurface()
+		TestBezierSurface()
+		TestThinSolid()
+	end
 
-		# TestOffset()
-		#TestThinSolid()
-		#TestEllipse()
-		#TestBezierStripe()
-		#TestDisplayNubSpline()
-		#TestDisplayNurbsSpline()
-		#TestMinkowski()
-
-		# BROKEN
-		# TestCylindricalSurface() 
-		# TestBezierManifold()
-
+	# BROKEN
+	if false
+		TestCubicSpline() 
+		TestOffset()
+		TestCylindricalSurface() 
+		TestBezierManifold()
+		TestEllipse()
+		TestBezierStripe()
+		estDisplayNubSpline()
+		TestDisplayNurbsSpline()
+		TestMinkowski()
 	end
 end
 

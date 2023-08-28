@@ -700,9 +700,9 @@ end
 
 
 # //////////////////////////////////////////////////////////////////////////////////////////
-function View(self::Hpc, title::String="")
+function View(self::Hpc, title::String="Plasm.jl")
 	batches=[GLAxis(Point3d(0,0,0),Point3d(+2,2,2));GetBatches(self)]
-	GLView(batches)
+	GLView(batches, title)
 end
 
 # //////////////////////////////////////////////////////////////////////////////////////////
@@ -980,7 +980,7 @@ function TestHpc()
 		Translate(Cube(2)     , [1.0, 1.0, 0.0]),
 		Translate(Cube(3)     , [2.0, 1.0, 0.0]),
 	])
-	View(obj)
+	View(obj,"Example")
 
 	# ToBoundaryForm
 	obj=ToBoundaryForm(Struct([
