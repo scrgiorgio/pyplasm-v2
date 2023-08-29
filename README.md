@@ -9,6 +9,17 @@ Translators:
 - https://www.codeconvert.ai/python-to-julia-converter (VERY GOOD, spent 30$)
 
 
+# PyPlasm
+
+
+```
+set PYTHONPATH=.
+python pyplasm/viewer.py
+python pyplasm/hpc.py
+python pyplasm/fenvs.py
+python pyplasm/temple.py
+python pyplasm/pisa.py
+```
 
 # Plasm.jl
 
@@ -32,14 +43,3 @@ julia src/fenvs.jl
 
 ``````
 
-# PyPlasm
-
-
-```
-set PYTHONPATH=.
-python pyplasm/viewer.py
-python pyplasm/hpc.py
-python pyplasm/fenvs.py
-python pyplasm/temple.py
-python pyplasm/pisa.py
-```

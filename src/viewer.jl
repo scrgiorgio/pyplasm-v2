@@ -925,10 +925,11 @@ function runViewer(viewer::Viewer,title::String="Plasm")
 	viewer.exitNow=false
 	GLFW.MakeContextCurrent(win)
 
-	println("GL_SHADING_LANGUAGE_VERSION ",unsafe_string(glGetString(GL_SHADING_LANGUAGE_VERSION)))
-	println("GL_VERSION                  ",unsafe_string(glGetString(GL_VERSION)))
-	println("GL_VENDOR                   ",unsafe_string(glGetString(GL_VENDOR)))
-	println("GL_RENDERER                 ",unsafe_string(glGetString(GL_RENDERER)))
+	println("Running viewer",title)
+	#println("GL_SHADING_LANGUAGE_VERSION ",unsafe_string(glGetString(GL_SHADING_LANGUAGE_VERSION)))
+	#println("GL_VERSION                  ",unsafe_string(glGetString(GL_VERSION)))
+	#println("GL_VENDOR                   ",unsafe_string(glGetString(GL_VENDOR)))
+	#println("GL_RENDERER                 ",unsafe_string(glGetString(GL_RENDERER)))
 
 	# problem of retina
 	window_size     =GLFW.GetWindowSize(viewer.win)

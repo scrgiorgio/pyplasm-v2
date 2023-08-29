@@ -221,10 +221,10 @@ end
 # /////////////////////////////////////////////////////////////////
 function INSR(f)
 	function INSR0(seq)
-		length=length(seq)
-		res = seq[end]
-		for i in length-1:-1:1
-			res = f([seq[i], res])
+		N=length(seq)
+		res = seq[N]
+		for I in N-2:-1:1
+			res = f([seq[I], res])
 		end
 		return res
 	end
@@ -234,9 +234,10 @@ end
 # /////////////////////////////////////////////////////////////////
 function INSL(f)
 	function INSL0(seq)
+		N=length(seq)
 		res = seq[1]
-		for item in seq[2:end]
-			res = f([res,item])
+		for I in 2:N
+			res = f([res,seq[I]])
 		end
 		return res
 	end
@@ -1645,11 +1646,11 @@ function MIRROR(D)
 end
 
 # /////////////////////////////////////////////////////////////
-function POLYMARKER(type, MARKERSIZE=0.1)
+function POLYMARKER(type::Int, MARKERSIZE::Float64=0.1)
 	A, B = MARKERSIZE, -MARKERSIZE
-	marker0 = MkPol([[A], [0], [0], [A], [B], [0], [0], [B]], [[0, 1], [1, 2], [2, 3], [3, 0]])
-	marker1 = MkPol([[A], [A], [B], [A], [B], [B], [A], [B]], [[0, 2], [1, 3]])
-	marker2 = MkPol([[A], [A], [B], [A], [B], [B], [A], [B]], [[0, 1], [1, 2], [2, 3], [3, 0]])
+	marker0 = MkPol([[A], [0], [0], [A], [B], [0], [0], [B]], [[0+1, 1+1], [1+1, 2+1], [2+1, 3+1], [3+1, 0+1]])
+	marker1 = MkPol([[A], [A], [B], [A], [B], [B], [A], [B]], [[0+1, 2+1], [1+1, 3+1]])
+	marker2 = MkPol([[A], [A], [B], [A], [B], [B], [A], [B]], [[0+1, 1+1], [1+1, 2+1], [2+1, 3+1], [3+1, 0+1]])
 	marker3 = STRUCT([marker0, marker1])
 	marker4 = STRUCT([marker0, marker2])
 	marker5 = STRUCT([marker1, marker2])
@@ -1657,7 +1658,7 @@ function POLYMARKER(type, MARKERSIZE=0.1)
 	function POLYMARKER_POINTS(points)
 		dim = length(points[1])
 		axis = collect(1:dim)
-		return Struct([T(axis, point)(marker) for point in points])
+		return Struct([T(axis)(point)(marker) for point in points])
 	end
 	return POLYMARKER_POINTS
 end
@@ -1748,7 +1749,7 @@ end
 # /////////////////////////////////////////////////////////////
 function CYLINDRICALSURFACE(args)
 	alpha_fun = args[1]
-	beta_fun = map(K, args[2])
+	beta_fun = CONS(AA(K)(args[2]))
 	return RULEDSURFACE([alpha_fun, beta_fun])
 end
 
@@ -1880,7 +1881,7 @@ end
 
 # /////////////////////////////////////////////////////////////
 function FINITECONE(pol)
-	 point = [0 for i in 1:RN(pol)]
+	 point = [0.0 for i in 1:RN(pol)]
 	 return JOIN([pol, MK(point)])
 end
 
@@ -1956,7 +1957,7 @@ function CUBICUBSPLINE(domain)
 			u2 = u*u
 			u3 = u2*u
 			q1, q2, q3, q4 = [ isa(f, Function)  ? f(point) : f for f in [q1_fn, q2_fn, q3_fn, q4_fn]]
-			ret = [0 for x in 1:length(q1)]
+			ret = [0.0 for x in 1:length(q1)]
 			for i in 1:length(ret)
 					ret[i] = (1.0/6.0)*((-u3+3*u2-3*u+1)*q1[i] + (3*u3-6*u2+4)*q2[i] + (-3*u3+3*u2+3*u+1)*q3[i] + (u3)*q4[i])
 			end
@@ -2002,7 +2003,7 @@ end
 
 # //////////////////////////////////////////////////////////////
 function JOINTS(curve)
-	knotzero = MK([0])
+	knotzero = MK([0.0])
 	function JOINTS0(points)
 		points, cells, pols = UKPOL(SPLINE(curve(knotzero)))
 		return POLYMARKER(2)(points)
@@ -2126,7 +2127,7 @@ function TENSORPRODSOLID(args)
 			W = [f([w]) for f in wbasis]
 			controlpoints = [ isa(f, Function) ? f(point) : f for f in controlpoints_fn]
 			target_dim = length(controlpoints[1][1][1])
-			ret = [0 for x in 1:target_dim]
+			ret = [0.0 for x in 1:target_dim]
 			for i in 1:length(ubasis)
 					for j in 1:length(vbasis)
 						for k in 1:length(wbasis)
@@ -2186,14 +2187,6 @@ function FRACTALSIMPLEX(D)
 	return FRACTALSIMPLEX0
 end
 
-# //////////////////////////////////////////////////////////////
-function PYRAMID(H)
-	function PYRAMID0(pol)
-		barycenter = MEANPOINT(UKPOL(pol)[1])
-		return JOIN([MK(barycenter+[H]), pol])
-	end
-	return PYRAMID0
-end
 
 function MESH(seq)
 	return INSL(RAISE(PROD))([QUOTE(i) for i in seq])
@@ -2325,7 +2318,7 @@ function SWEEP(v)
 		ret = Power(pol, QUOTE([1]))
 		mat = IDNT(length(v)+2)
 		for i in 1:length(v)
-			mat[i+1][length(v)+1] = v[i]
+			mat[i+1,length(v)+1] = v[i]
 		end
 		ret = MAT(mat)(ret)
 		return PROJECT(1)(ret)
@@ -2337,8 +2330,9 @@ end
 function MINKOWSKI(vects)
 	function MINKOWSKI0(pol)
 		ret = pol
-		for i in range(length(vects)-1,-1,-1)
-			ret = SWEEP(vects[i])(ret)
+		for I in length(vects):-1:1
+			println("!!! vects ",vects, "I=",I)
+			ret = SWEEP(vects[I])(ret)
 		end
 		return ret
 	end
@@ -2349,11 +2343,11 @@ end
 function OFFSET(v)
 	function OFFSET0(pol)
 		ret = pol
-		for i in 1:length(v)
-			shear = [j!=i ? 0 : v[i] for j in 1:length(v)] + [0 for j in 1:i]
+		for I in 1:length(v)
+			shear = [[J!=I ? 0.0 : v[I] for J in 1:length(v)]; [0.0 for J in 2:I] ]
 			mat = IDNT(length(shear)+2)
-			for i in 1:length(shear)
-				mat[i+1][length(shear)+1] = shear[i]
+			for J in 1:length(shear)
+				mat[J+1,length(shear)+2] = shear[J]
 			end
 			ret = MAT(mat)((Power(ret, QUOTE([1]))))
 		end
@@ -2400,7 +2394,7 @@ function RATIONALBEZIER(controlpoints_fn)
 	function map_fn(point)
 		controlpoints = [ isa(f, Function) ? f(point) : f for f in controlpoints_fn]
 		target_dim = length(controlpoints[1])
-		ret = [0 for i in 1:target_dim]
+		ret = [0.0 for i in 1:target_dim]
 		for i in 1:length(basis)
 			coeff = basis[i](point)
 			for M in 1:target_dim
@@ -2418,14 +2412,14 @@ function RATIONALBEZIER(controlpoints_fn)
 end
 
 # //////////////////////////////////////////////////////////////
-function ELLIPSE(args)
+function ELLIPSE(args::Vector{Float64})
 	A, B = args
-	function ELLIPSE0(N)
+	function ELLIPSE0(N::Int)
 		C = 0.5*sqrt(2)
-		mapping = RATIONALBEZIER([[A, 0, 1], [A*C, B*C, C], [0, B, 1]])
+		mapping = RATIONALBEZIER([[A, 0.0, 1.0], [A*C, B*C, C], [0.0, B, 1.0]])
 		quarter = MAP(mapping)((INTERVALS(1.0)(N)))
-		half = STRUCT([quarter, S(2)(-1)(quarter)])
-		return STRUCT([half, S(1)(-1)(half)])
+		half = STRUCT([quarter, S(2)(-1.0)(quarter)])
+		return STRUCT([half, S(1)(-1.0)(half)])
 	end
 	return ELLIPSE0
 end
@@ -2461,7 +2455,7 @@ function DERBEZIER(controlpoints_fn)
 	function map_fn(point)
 		controlpoints = [isa(f, Function)  ? f(point) : f for f in controlpoints_fn]
 		target_dim = length(controlpoints[1])
-		ret = [0 for i in 1:target_dim]
+		ret = [0.0 for i in 1:target_dim]
 		for i in 1:length(basis)
 			coeff = basis[i](point)
 			for M in 1:target_dim
@@ -2490,7 +2484,7 @@ function BEZIERSTRIPE(args)
 end
 
 # //////////////////////////////////////////////////////////////
-function BSPLINE(degree)
+function BSPLINE(degree::Int)
 	function BSPLINE0(knots)
 		function BSPLINE1(points_fn)
 			n = length(points_fn)-1
@@ -2498,11 +2492,8 @@ function BSPLINE(degree)
 			k = degree+1
 			T = knots
 			tmin, tmax = T[k], T[n+1]
-			
-			if length(knots) != (n+k+1)
-					error("Invalid point/knots/degree for bspline!")
-			end
-			
+			@assert length(knots)==(n+k+1)
+
 			function N(i, k, t)
 					
 					if k == 1
@@ -2530,7 +2521,7 @@ function BSPLINE(degree)
 					
 					points = [ isa(f, Function) ? f(point) : f for f in points_fn]
 					target_dim = length(points[1])
-					ret = [0 for i in 1:target_dim]
+					ret = [0.0 for i in 1:target_dim]
 					for i in 1:n+1
 						coeff = N(i, k, t) 
 						for M in 1:target_dim
@@ -2556,7 +2547,7 @@ function NUBSPLINE(degree, totpoints=80)
 			tsiz = tmax-tmin
 			v = [tsiz/float(totpoints-1) for i in 1:totpoints-1]
 			@assert length(v)+1 == totpoints
-			v = [-tmin] + v
+			v = [-tmin;v]
 			domain = QUOTE(v)
 			return MAP(BSPLINE(degree)(knots)(points))(domain)
 		end
@@ -2566,13 +2557,12 @@ function NUBSPLINE(degree, totpoints=80)
 end
 
 # //////////////////////////////////////////////////////////////
-function DISPLAYNUBSPLINE(args, marker_size=0.1)
-	degree, knots, points = args
-	spline_view_knots = POLYMARKER(2, marker_size)(UKPOL(NUBSPLINE(degree, length(knots))(knots)(points))[1])
+function DISPLAYNUBSPLINE(degree::Int, knots::Vector, points, marker_size::Float64=0.1)
+	polymarker_type=2
+	spline=NUBSPLINE(degree, length(knots))(knots)(points)
+	spline_view_knots = POLYMARKER(polymarker_type, marker_size)(UKPOL(spline)[1])
 	return  STRUCT([
-		degree > 0 ? 
-			NUBSPLINE(degree)(knots)(points) : 
-			POLYMARKER(3, marker_size)(points)
+		degree > 0 ? NUBSPLINE(degree)(knots)(points) : POLYMARKER(3, marker_size)(points)
 		,spline_view_knots
 		,POLYLINE(points)
 		,POLYMARKER(1, marker_size)(points)
@@ -2610,7 +2600,7 @@ function NURBSPLINE(degree, totpoints=80)
 			tsiz = tmax-tmin
 			v = [tsiz/float(totpoints-1) for i in 1:totpoints-1]
 			@assert length(v)+1 == totpoints
-			v = [-tmin] + v
+			v = [-tmin;v]
 			domain = QUOTE(v)
 			return MAP(RATIONALBSPLINE(degree)(knots)(points))(domain)
 		end
@@ -2680,7 +2670,7 @@ function TestRotationalSurface()
 end
 
 function TestCylindricalSurface()
-	alpha = BEZIER(S1)([[1,1,0],[-1,1,0],[1,-1,0],[-1,-1,0]])
+	alpha = BEZIER(S1)([[1.0,1.0,0.0],[-1.0,1.0,0.0],[1.0,-1.0,0.0],[-1.0,-1.0,0.0]])
 	Udomain = INTERVALS(1.0)(20)
 	Vdomain = INTERVALS(1.0)(6)
 	domain = Power(Udomain,Vdomain)
@@ -2723,17 +2713,17 @@ end
 function TestCubicSpline()
 	domain = INTERVALS(1.0)(20)
 	points = [
-		[-3.0,6.0],
-		[-4.0,2.0],
+		[-3.0, 6.0],
+		[-4.0, 2.0],
 		[-3.0,-1.0],
-		[-1.0,1.0],
-		[1.5,1.5],
-		[3.0,4.0],
-		[5.0,5.0],
-		[7.0,2.0],
-		[6.0,-2.0],
-		[2.0,-3.0]
-		]
+		[-1.0, 1.0],
+		[ 1.5, 1.5],
+		[ 3.0, 4.0],
+		[ 5.0, 5.0],
+		[ 7.0, 2.0],
+		[ 6.0,-2.0],
+		[ 2.0,-3.0]
+	]
 	VIEW(SPLINE(CUBICCARDINAL(domain))(points), "TestCubicSpline-1")
 	VIEW(SPLINE(CUBICUBSPLINE(domain))(points), "TestCubicSpline-2")
 end
@@ -2784,7 +2774,7 @@ function TestBezierManifold()
 end
 
 function TestOffset()
-	verts = [[0,0,0],[3,0,0],[3,2,0],[0,2,0],[0,0,1.5],[3,0,1.5],[3,2,1.5],[0,2,1.5],[0,1,2.2],[3,1,2.2]]
+	verts = ToFloat64([[0,0,0],[3,0,0],[3,2,0],[0,2,0],[0,0,1.5],[3,0,1.5],[3,2,1.5],[0,2,1.5],[0,1,2.2],[3,1,2.2]])
 	cells = [[1,2],[2,3],[3,4],[4,1],[5,6],[6,7],[7,8],[8,5],[1,5],[2,6],[3,7],[4,8],[5,9],[8,9],[6,10],[7,10], [9,10]]
 	pols = [[1]]
 	House = MKPOL(verts,cells,pols)
@@ -2804,23 +2794,25 @@ function TestThinSolid()
 end
 
 function TestEllipse()
-	VIEW(ELLIPSE([1,2])(8), "TestEllipse")
+	VIEW(ELLIPSE([1.0,2.0])(8), "TestEllipse")
 end
 
 function TestBezierStripe()
-	vertices = [[0,0],[1.5,0],[-1,2],[2,2],[2,0]]
+	vertices = ToFloat64([[0,0],[1.5,0],[-1,2],[2,2],[2,0]])
 	VIEW(Struct([POLYLINE(vertices),Power(BEZIERSTRIPE([vertices,0.25,22]),QUOTE([0.9]))]), "TestBezierStripe")
 end
 
 function TestDisplayNubSpline()
-	ControlPoints = [[0,0],[-1,2],[1,4],[2,3],[1,1],[1,2],[2.5,1], [2.5,3], [4,4],[5,0]]
-	VIEW(DISPLAYNUBSPLINE([3,[0,0,0,0, 1,2,3,4,5, 6    ,7,7,7,7], ControlPoints]), "TestDisplayNubSpline")
+	degree=3
+	ControlPoints = ToFloat64([[0,0],[-1,2],[1,4],[2,3],[1,1],[1,2],[2.5,1], [2.5,3], [4,4],[5,0]]) # 10 points
+	knots=[0,0,0,0, 1,2,3,4,5, 6    ,7,7,7,7] # 14 knots
+	VIEW(DISPLAYNUBSPLINE(degree, knots, ControlPoints), "TestDisplayNubSpline")
 end
 
 function TestDisplayNurbsSpline()
 	knots = [0,0,0,1,1,2,2,3,3,4,4,4]
 	_p=sqrt(2)/2.0
-	controlpoints = [[-1,0,1], [-_p,_p,_p], [0,1,1], [_p,_p,_p],[1,0,1], [_p,-_p,_p], [0,-1,1], [-_p,-_p,_p], [-1,0,1]]
+	controlpoints = ToFloat64([[-1,0,1], [-_p,_p,_p], [0,1,1], [_p,_p,_p],[1,0,1], [_p,-_p,_p], [0,-1,1], [-_p,-_p,_p], [-1,0,1]])
 	VIEW(DISPLAYNURBSPLINE([2, knots, controlpoints]), "TestDisplayNurbsSpline")
 end
 
@@ -2851,41 +2843,7 @@ function TestThinsolid()
 	VIEW(MAP(solidMapping)(Domain3D), "TestThinsolid-2")
 end
 
-function TestEllipse()
-	VIEW(ELLIPSE([1,2])(8), "TestEllipse")
-end
 
-function TestBezierStripe()
-	vertices = [[0.0,0.0],[1.5,0.0],[-1.0,2.0],[2.0,2.0],[2.0,0.0]]
-	VIEW(Struct([POLYLINE(vertices),Power(BEZIERSTRIPE([vertices,0.25,22]),QUOTE([0.9]))]), "TestBezierStripe")
-end
-
-function TestDisplayNubSpline()
-	ControlPoints = [[0,0],[-1,2],[1,4],[2,3],[1,1],[1,2],[2.5,1], [2.5,3], [4,4],[5,0]]
-	VIEW(DISPLAYNUBSPLINE([3,[0,0,0,0, 1,2,3,4,5, 6,7,7,7,7], ControlPoints]), "TestDisplayNubSpline")
-end
-
-function TestDisplayNurbsSpline()
-	knots = [0,0,0,1,1,2,2,3,3,4,4,4]
-	_p = sqrt(2)/2.0
-	controlpoints = [[-1,0,1], [-_p,_p,_p], [0,1,1], [_p,_p,_p],[1,0,1], [_p,-_p,_p], [0,-1,1], [-_p,-_p,_p], [-1,0,1]]
-	VIEW(DISPLAYNURBSPLINE([2, knots, controlpoints]), "TestDisplayNurbsSpline")
-end
-
-function TestMinkowski()
-	p = MKPOL([[0.0,0.0]],[[1]],[[1]])
-	B = MINKOWSKI([[-1.0/2.0,-sqrt(3.0/2.0)], [-1.0/2.0,sqrt(3.0/2.0)], [1,0]])(p)
-	vertices = [[0.0,0.0],[1.0,0.0],[1.0,0.5],[0.5,0.5],[0.5,1.0],[0.0,1.0]]
-	pol1D = MKPOL(vertices,[[1,2],[2,3],[3,4],[4,5],[5,6],[6,1]],[[1],[2],[3],[4],[5],[6]])
-	pol2D = MKPOL(vertices,[[1,2,3,4],[4,5,6,1]],[[1,2]])
-	Min0 = STRUCT([T([1,2])(v)(S([1,2])([0.1,0.1])(B)) for v in vertices])
-	Min1 = MINKOWSKI([[0.1*-1.0/2.0,0.1*-sqrt(3.0/2.0)],[0.1*-1.0/2.0,0.1*sqrt(3.0/2.0)],[0.1*1,0.1*0]])(pol1D)
-	Min2 = MINKOWSKI([[0.1*-1.0/2.0,0.1*-sqrt(3.0/2.0)],[0.1*-1.0/2.0,0.1*sqrt(3.0/2.0)],[0.1*1,0.1*0]])(pol2D)
-	A = Power(Min2,Q(0.05))
-	B = Power(Min0,Q(0.70))
-	C = Power(Min1,Q(0.05))
-	VIEW(TOP([TOP([A,B]),C]), "TestMINKOWSKI")
-end
 
 function TestPolar()
 	VIEW(POLAR(CUBOID([1,1,1])), "TestPolar")
@@ -3106,9 +3064,6 @@ if abspath(PROGRAM_FILE) == @__FILE__
 		@assert fuzzyEqual(box((TORUS([1.0,2.0])([8,8]))),BoxNd([-2.0,-2.0,-0.5],[+2.0,+2.0,+0.5]))
 		@assert fuzzyEqual(box((CONE([1.0,3.0])(16))),BoxNd([-1.0,-1.0,0.0],[+1.0,+1.0,3.0]))
 
-
-
-		end
 		print("All assert ok")
 
 	end
@@ -3134,35 +3089,40 @@ if abspath(PROGRAM_FILE) == @__FILE__
 		TestBiquadraticSurface()
 		TestBezierSurface()
 		TestThinSolid()
+		TestCubicSpline() 
+		TestCylindricalSurface() 
+		TestBezierManifold()
+		TestOffset()
+		TestEllipse()
+		TestBezierStripe()
+		TestDisplayNubSpline()
+		TestDisplayNurbsSpline()
+	
 	end
-
-
-		# BROKEN
-		if false
-			@assert fuzzyEqual(box(UNION([
-				Cube(2,0.0,1.0),
-				Cube(2,0.5,1.5)])),BoxNd([0.0,0.0],[1.5,1.5]))
-			@assert fuzzyEqual(box(INTERSECTION([
-				Cube(2,0.0,1.0),
-				Cube(2,0.5,1.5)])),BoxNd([0.5,0.5],[1.0,1.0]))
-			@assert fuzzyEqual(box(DIFFERENCE([
-				Cube(2,0.0,1.0),
-				Cube(2,0.5,1.5)])),BoxNd([0.0,0.0],[1.0,1.0]))
-			@assert fuzzyEqual(box(XOR([
-				Cube(2,0,1),
-				Cube(2,0.5,1.5)])),BoxNd([0.0,0.0],[1.5,1.5]))
 
 	# BROKEN
 	if false
-		TestCubicSpline() 
-		TestOffset()
-		TestCylindricalSurface() 
-		TestBezierManifold()
-		TestEllipse()
-		TestBezierStripe()
-		estDisplayNubSpline()
-		TestDisplayNurbsSpline()
-		TestMinkowski()
+		@assert fuzzyEqual(box(UNION([
+			Cube(2,0.0,1.0),
+			Cube(2,0.5,1.5)])),BoxNd([0.0,0.0],[1.5,1.5]))
+		@assert fuzzyEqual(box(INTERSECTION([
+			Cube(2,0.0,1.0),
+			Cube(2,0.5,1.5)])),BoxNd([0.5,0.5],[1.0,1.0]))
+		@assert fuzzyEqual(box(DIFFERENCE([
+			Cube(2,0.0,1.0),
+			Cube(2,0.5,1.5)])),BoxNd([0.0,0.0],[1.0,1.0]))
+		@assert fuzzyEqual(box(XOR([
+			Cube(2,0,1),
+			Cube(2,0.5,1.5)])),BoxNd([0.0,0.0],[1.5,1.5]))
 	end
+
+	# BROKEN in julia
+	# TestMinkowski()
+
+	# broken in Python
+	# tests.TestPolar()
+	# tests.TestSolidify()
+	# tests.TestDiff()
+
 end
 
